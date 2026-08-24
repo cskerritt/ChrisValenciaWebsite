@@ -1,0 +1,33 @@
+{
+  "artist": {
+    "name": "Chris Valencia",
+    "instagram": "https://instagram.com/cvalencia7",
+    "instagramHandle": "@cvalencia7",
+    "video": "https://www.youtube-nocookie.com/embed/PxfH5-cOwHo",
+    "headshot": "/images/chris-valencia.jpg",
+    "specialties": ["illustrative", "neo-traditional", "new-school"]
+  },
+  "shop": {
+    "name": "Powerline Tattoo",
+    "streetAddress": "706 Reservoir Avenue",
+    "addressLocality": "Cranston",
+    "addressRegion": "RI",
+    "postalCode": "02910",
+    "telephone": "+1-401-369-7771",
+    "telephoneDisplay": "(401) 369-7771",
+    "email": "info@powerlinetattoo.com",
+    "url": "https://powerlinetattoo.com",
+    "latitude": 41.7721,
+    "longitude": -71.4352,
+    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    "hoursNote": "By appointment only"
+  },
+  "unconfirmed": [
+    "hourly rate / shop minimum",
+    "deposit amount",
+    "walk-in policy",
+    "Chris's personal booking email",
+    "years tattooing as a number",
+    "client testimonials"
+  ]
+}
