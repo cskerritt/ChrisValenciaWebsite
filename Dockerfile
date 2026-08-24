@@ -8,6 +8,10 @@ RUN npm ci
 COPY astro.config.mjs tsconfig.json ./
 COPY public ./public
 COPY src ./src
+# SITE_URL drives every absolute URL (canonical, OG, sitemap, JSON-LD, llms.txt).
+# Railway only exposes service variables to Docker builds that declare the ARG.
+ARG SITE_URL
+ENV SITE_URL=$SITE_URL
 RUN npm run build
 
 FROM node:22-alpine
