@@ -1,0 +1,138 @@
+---
+/**
+ * Base layout: <head> SEO, Google Fonts, no-flash theme script, JSON-LD
+ * (WebSite always, BreadcrumbList when `breadcrumbs` is passed, plus any
+ * page `jsonLd[]`), skip link, Header, <main id="main">, Footer, and the
+ * scroll-reveal observer.
+ *
+ * Usage:
+ *   <Base title="…" description="…" breadcrumbs={[{ name: 'FAQ', path: '/faq/' }]}
+ *         jsonLd={[person(), faqPage(items)]}>
+ *     …page content…
+ *   </Base>
+ *
+ * `canonicalPath` defaults to the current route. "Home" is prepended to the
+ * breadcrumb trail automatically.
+ */
+import '../styles/tokens.css';
+import '../styles/global.css';
+import Seo from '../components/Seo.astro';
+import JsonLd from '../components/JsonLd.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { webSite, breadcrumbs as breadcrumbList, type BreadcrumbItem } from '../lib/schema';
+
+export interface Props {
+  title: string;
+  description: string;
+  canonicalPath?: string;
+  ogImage?: string;
+  ogImageAlt?: string;
+  ogType?: 'website' | 'article' | 'profile';
+  noindex?: boolean;
+  jsonLd?: Record<string, unknown>[];
+  breadcrumbs?: BreadcrumbItem[];
+  /** Extra class(es) for <body>, e.g. "page-home". */
+  bodyClass?: string;
+}
+
+const {
+  title,
+  description,
+  canonicalPath = Astro.url.pathname,
+  ogImage,
+  ogImageAlt,
+  ogType,
+  noindex = false,
+  jsonLd = [],
+  breadcrumbs: crumbs,
+  bodyClass,
+} = Astro.props;
+
+const trail: BreadcrumbItem[] | undefined =
+  crumbs && crumbs.length
+    ? crumbs[0].path === '/'
+      ? crumbs
+      : [{ name: 'Home', path: '/' }, ...crumbs]
+    : undefined;
+
+const graph: Record<string, unknown>[] = [
+  webSite(),
+  ...(trail ? [breadcrumbList(trail)] : []),
+  ...jsonLd,
+];
+
+const FONTS =
+  'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,600&family=Inter+Tight:wght@400;500;600&display=swap';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline>
+      // Runs before any stylesheet: applies the stored theme (no flash) and
+      // flags JS so progressive enhancements (.reveal, menu toggle) switch on.
+      (function () {
+        var d = document.documentElement;
+        d.classList.add('js');
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'dark' || t === 'light') d.setAttribute('data-theme', t);
+        } catch (e) {}
+      })();
+    </script>
+    <Seo
+      title={title}
+      description={description}
+      canonicalPath={canonicalPath}
+      ogImage={ogImage}
+      ogImageAlt={ogImageAlt}
+      ogType={ogType}
+      noindex={noindex}
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href={FONTS} />
+    <link rel="stylesheet" href={FONTS} media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href={FONTS} /></noscript>
+    {graph.map((node) => <JsonLd data={node} />)}
+    <slot name="head" />
+  </head>
+  <body class={bodyClass}>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Header />
+    <main id="main" tabindex="-1">
+      {trail && <Breadcrumbs items={trail} />}
+      <slot />
+    </main>
+    <Footer />
+    <script is:inline>
+      // Scroll reveal. Content is visible by default; this only adds the
+      // fade-in for browsers that can observe, and bails under reduced motion.
+      (function () {
+        var els = document.querySelectorAll('.reveal');
+        if (!els.length) return;
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce || !('IntersectionObserver' in window)) {
+          els.forEach(function (el) { el.classList.add('is-in'); });
+          return;
+        }
+        var io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('is-in');
+                io.unobserve(entry.target);
+              }
+            });
+          },
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.08 }
+        );
+        els.forEach(function (el) { io.observe(el); });
+      })();
+    </script>
+  </body>
+</html>

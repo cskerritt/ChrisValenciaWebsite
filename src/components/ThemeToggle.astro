@@ -1,0 +1,135 @@
+---
+/**
+ * Light/dark toggle. A true toggle button: the label stays "Dark mode" and
+ * aria-pressed carries the state. Choice is stored in localStorage("theme");
+ * choosing the theme that matches the OS clears the override so the site
+ * follows the system again. Hidden entirely without JavaScript.
+ */
+---
+
+<button
+  type="button"
+  class="theme-toggle js-only"
+  data-theme-toggle
+  aria-pressed="false"
+  aria-label="Dark mode"
+  title="Toggle dark mode"
+>
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+    <g
+      class="theme-toggle__sun"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.7"
+      stroke-linecap="round"
+    >
+      <circle cx="12" cy="12" r="4.1"></circle>
+      <path
+        d="M12 2.6v2.3M12 19.1v2.3M2.6 12h2.3M19.1 12h2.3M5.4 5.4l1.6 1.6M17 17l1.6 1.6M5.4 18.6 7 17M17 7l1.6-1.6"
+      ></path>
+    </g>
+    <g
+      class="theme-toggle__moon"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.7"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    >
+      <path d="M19.8 14.6A8 8 0 0 1 9.4 4.2a8 8 0 1 0 10.4 10.4Z"></path>
+      <path d="M17.2 4.3v3M15.7 5.8h3" stroke-width="1.4"></path>
+    </g>
+  </svg>
+</button>
+
+<style is:global>
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap);
+    height: var(--tap);
+    border: 1.5px solid transparent;
+    border-radius: 50%;
+    color: var(--ink);
+    transition: border-color 0.15s, background-color 0.15s, transform 0.15s var(--ease-out);
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--ink);
+    background: var(--paper-3);
+  }
+
+  .theme-toggle:active {
+    transform: scale(0.94);
+  }
+
+  .theme-toggle__moon {
+    display: none;
+  }
+
+  [data-theme='dark'] .theme-toggle__sun {
+    display: none;
+  }
+
+  [data-theme='dark'] .theme-toggle__moon {
+    display: block;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .theme-toggle__sun {
+      display: none;
+    }
+
+    :root:not([data-theme='light']) .theme-toggle__moon {
+      display: block;
+    }
+  }
+</style>
+
+<script>
+  const root = document.documentElement;
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]'));
+
+  type Theme = 'light' | 'dark';
+
+  const systemTheme = (): Theme => (media.matches ? 'dark' : 'light');
+
+  const effectiveTheme = (): Theme => {
+    const set = root.getAttribute('data-theme');
+    return set === 'dark' || set === 'light' ? set : systemTheme();
+  };
+
+  const paint = () => {
+    const dark = effectiveTheme() === 'dark';
+    for (const b of buttons) b.setAttribute('aria-pressed', String(dark));
+    // Keep the browser chrome tint in step with the page, not just the OS.
+    const paper = getComputedStyle(root).getPropertyValue('--paper').trim();
+    if (paper) {
+      document
+        .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+        .forEach((m) => m.setAttribute('content', paper));
+    }
+  };
+
+  const apply = (next: Theme) => {
+    const followsSystem = next === systemTheme();
+    try {
+      if (followsSystem) localStorage.removeItem('theme');
+      else localStorage.setItem('theme', next);
+    } catch {
+      /* storage unavailable (private mode): the choice lasts for this page */
+    }
+    if (followsSystem) root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', next);
+    paint();
+  };
+
+  for (const b of buttons) {
+    b.addEventListener('click', () => apply(effectiveTheme() === 'dark' ? 'light' : 'dark'));
+  }
+
+  media.addEventListener('change', paint);
+  paint();
+</script>

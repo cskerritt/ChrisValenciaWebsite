@@ -1,23 +1,100 @@
 ---
-// Placeholder home page. Task 3 routes this through layouts/Base.astro and
-// Task 7 replaces it with the real hero + sections.
-const title = 'Chris Valencia Tattoo';
+// Placeholder home page routed through the Base layout (plan Task 3, step 6).
+// Task 7 replaces this with the real hero + sections. Until then it doubles as
+// a live sample of the Flash Sheet design vocabulary defined in global.css.
+import Base from '../layouts/Base.astro';
+import portfolio from '../data/portfolio.json';
+import shop from '../data/shop.json';
+import { person, tattooParlor } from '../lib/schema';
+
+const title = 'Chris Valencia Tattoo | Cranston, RI';
 const description =
-  'Illustrative, neo-traditional and new-school tattoos by Chris Valencia, resident artist at Powerline Tattoo in Cranston, Rhode Island.';
+  'Illustrative, neo-traditional and new-school tattoos by Chris Valencia, resident artist at Powerline Tattoo in Cranston, Rhode Island. Request a booking online.';
+const hero = portfolio.find((p) => p.featured) ?? portfolio[0];
+const { shop: s } = shop;
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title>
-    <meta name="description" content={description} />
-  </head>
-  <body>
-    <main id="main">
-      <h1>{title}</h1>
-      <p>{description}</p>
-    </main>
-  </body>
-</html>
+<Base title={title} description={description} canonicalPath="/" jsonLd={[person(), tattooParlor()]} bodyClass="page-home">
+  <section class="section container">
+    <div class="hero">
+      <div class="hero__copy stack">
+        <p class="eyebrow"><span class="sheet-no">No. 01</span> {s.addressLocality}, Rhode Island</p>
+        <h1>Illustrative &amp; neo-traditional tattoos with a surreal, animated edge</h1>
+        <p class="answer">
+          Chris Valencia is the resident artist at {s.name} in {s.addressLocality}, Rhode Island. He works in
+          illustrative, neo-traditional and new-school styles, drawing fun, surreal images with an animated,
+          whimsical feel. The shop is by appointment only; send your idea through the booking form to get started.
+        </p>
+        <div class="cluster">
+          <a class="btn btn--primary" href="/book/">Request a booking</a>
+          <a class="btn" href="/portfolio/">See the portfolio</a>
+        </div>
+      </div>
+      <figure class="frame reg-marks hero__art">
+        <img src={hero.file} width={hero.width} height={hero.height} alt={hero.alt} fetchpriority="high" />
+        <figcaption>
+          <span class="sheet-no">No. {hero.id.replace('chris-', '')}</span>
+          <span>{hero.title} · {hero.placement}</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section--tight container">
+    <div class="sheet reveal">
+      <span class="sheet-no sheet__no">No. 02</span>
+      <div class="grid grid--2">
+        <div class="prose">
+          <h2>How booking works</h2>
+          <p>
+            Every piece starts with your idea. Send a short description, placement and any reference images
+            through the booking form. Chris replies by email, a consultation settles the design, and a deposit
+            holds your appointment. The deposit amount is confirmed when you book.
+          </p>
+          <hr class="rule-hand rule-hand--accent rule-hand--tight" />
+          <p class="pull-quote">Fun, surreal images with a very animated, whimsical feel.</p>
+        </div>
+        <div class="stack">
+          <p class="eyebrow">Styles</p>
+          <div class="cluster">
+            <a class="chip" href="/styles/illustrative/">Illustrative</a>
+            <a class="chip" href="/styles/neo-traditional/">Neo-traditional</a>
+            <a class="chip" href="/styles/new-school/">New-school</a>
+            <a class="chip" href="/styles/cover-ups/">Cover-ups</a>
+          </div>
+          <p class="muted">
+            <span class="stamp">{s.hoursNote}</span>
+          </p>
+          <p>
+            {s.name}, {s.streetAddress}, {s.addressLocality}, {s.addressRegion} {s.postalCode} ·
+            <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    display: grid;
+    gap: var(--space-l);
+    align-items: center;
+  }
+
+  .hero__art {
+    max-width: 30rem;
+    justify-self: center;
+    width: 100%;
+  }
+
+  @media (min-width: 800px) {
+    .hero {
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    }
+
+    .hero__art {
+      justify-self: end;
+    }
+  }
+</style>

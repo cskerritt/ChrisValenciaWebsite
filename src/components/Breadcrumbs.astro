@@ -1,0 +1,81 @@
+---
+/**
+ * Visual breadcrumb trail. Base.astro renders this at the top of <main> and
+ * emits the matching BreadcrumbList JSON-LD, so pages only pass `breadcrumbs`.
+ */
+import type { BreadcrumbItem } from '../lib/schema';
+
+export interface Props {
+  items: BreadcrumbItem[];
+}
+
+const { items } = Astro.props;
+const last = items.length - 1;
+---
+
+<nav class="crumbs" aria-label="Breadcrumb">
+  <ol class="crumbs__list container">
+    {
+      items.map((item, i) => (
+        <li class="crumbs__item">
+          {i === last ? (
+            <span class="crumbs__current" aria-current="page">
+              {item.name}
+            </span>
+          ) : (
+            <a class="crumbs__link" href={item.path}>
+              {item.name}
+            </a>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</nav>
+
+<style is:global>
+  .crumbs {
+    padding-top: var(--space-s);
+  }
+
+  .crumbs__list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2em 0.45em;
+    list-style: none;
+    padding-left: 0;
+    padding-block: 0.25rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    line-height: 1.4;
+  }
+
+  .crumbs__item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45em;
+  }
+
+  .crumbs__item + .crumbs__item::before {
+    content: '/' / '';
+    color: var(--accent);
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  .crumbs__link {
+    display: inline-block;
+    padding-block: 0.35em;
+    text-decoration-color: transparent;
+  }
+
+  .crumbs__link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .crumbs__current {
+    color: var(--ink-2);
+  }
+</style>

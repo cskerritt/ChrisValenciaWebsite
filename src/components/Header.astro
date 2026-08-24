@@ -1,0 +1,566 @@
+---
+/**
+ * Site header: wordmark + serif tagline, primary nav (Styles is a native
+ * <details> disclosure so it works without JS), Book CTA, theme toggle and a
+ * JS mobile menu toggle with aria-expanded. Sticky, on paper, with a ruler
+ * tick rule underneath.
+ */
+import ThemeToggle from './ThemeToggle.astro';
+import shop from '../data/shop.json';
+import { PRIMARY_NAV, STYLE_PAGES } from '../lib/seo';
+
+const path = Astro.url.pathname;
+const current = (href: string): 'page' | undefined =>
+  (href === '/' ? path === '/' : path === href || path.startsWith(href)) ? 'page' : undefined;
+const inStyles = path.startsWith('/styles/');
+const tagline = `Tattoo · ${shop.shop.addressLocality}, ${shop.shop.addressRegion}`;
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<header class="site-header" data-site-header>
+  <div class="site-header__inner container">
+    <a class="wordmark" href="/" aria-label="Chris Valencia Tattoo, home">
+      <span class="wordmark__name">Chris Valencia</span>
+      <span class="wordmark__tag">{tagline}</span>
+    </a>
+
+    <nav class="site-nav" id="site-nav" aria-label="Primary">
+      <ul class="site-nav__list" role="list">
+        {
+          PRIMARY_NAV.slice(0, 1).map((l) => (
+            <li>
+              <a class="site-nav__link" href={l.path} aria-current={current(l.path)}>
+                {l.name}
+              </a>
+            </li>
+          ))
+        }
+        <li class="site-nav__item--menu">
+          <details class="nav-menu" data-nav-menu>
+            <summary class="site-nav__link nav-menu__summary" aria-current={inStyles ? 'page' : undefined}>
+              Styles
+              <svg class="nav-menu__chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
+                <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </summary>
+            <ul class="nav-menu__list" role="list">
+              {
+                STYLE_PAGES.map((s, i) => (
+                  <li>
+                    <a class="nav-menu__link" href={s.path} aria-current={current(s.path)}>
+                      <span class="nav-menu__no sheet-no" aria-hidden="true">{pad(i + 1)}</span>
+                      <span>{s.name}</span>
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+          </details>
+        </li>
+        {
+          PRIMARY_NAV.slice(1).map((l) => (
+            <li>
+              <a class="site-nav__link" href={l.path} aria-current={current(l.path)}>
+                {l.name}
+              </a>
+            </li>
+          ))
+        }
+        <li class="site-nav__item--book">
+          <a class="btn btn--primary btn--sm site-nav__book" href="/book/" aria-current={current('/book/')}>
+            Request a booking
+          </a>
+        </li>
+        <li class="site-nav__item--theme js-only">
+          <span class="site-nav__theme-label" aria-hidden="true">Dark mode</span>
+          <ThemeToggle />
+        </li>
+      </ul>
+    </nav>
+
+    <div class="site-header__tools">
+      <ThemeToggle />
+      <a class="btn btn--primary btn--sm site-header__book" href="/book/" aria-current={current('/book/')}>Book</a>
+      <button
+        type="button"
+        class="nav-toggle js-only"
+        data-nav-toggle
+        aria-expanded="false"
+        aria-controls="site-nav"
+        aria-label="Menu"
+      >
+        <span class="nav-toggle__bars" aria-hidden="true">
+          <span class="nav-toggle__bar"></span>
+          <span class="nav-toggle__bar"></span>
+        </span>
+        <span class="nav-toggle__text" aria-hidden="true">Menu</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<style is:global>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--paper);
+  }
+
+  /* Ruler: baseline + short ticks every 8px, taller ticks every 40px. */
+  .site-header::after {
+    content: '';
+    display: block;
+    height: 10px;
+    background:
+      linear-gradient(var(--ink), var(--ink)) left bottom / 100% 1px no-repeat,
+      repeating-linear-gradient(to right, var(--ink-2) 0 1px, transparent 1px 40px) left bottom / auto 8px repeat-x,
+      repeating-linear-gradient(to right, var(--rule-2) 0 1px, transparent 1px 8px) left bottom / auto 4px repeat-x;
+  }
+
+  .site-header__inner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-m);
+    min-height: var(--header-h);
+  }
+
+  .wordmark {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    min-height: var(--tap);
+    justify-content: center;
+    text-decoration: none;
+    color: var(--ink);
+  }
+
+  .wordmark:hover {
+    color: var(--ink);
+  }
+
+  .wordmark__name {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.035em;
+  }
+
+  .wordmark:hover .wordmark__name {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.12em;
+  }
+
+  .wordmark__tag {
+    margin-top: 0.25rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.82rem;
+    line-height: 1.1;
+    color: var(--ink-2);
+  }
+
+  .site-nav__list {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .site-nav__link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    padding: 0 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .site-nav__link:hover {
+    color: var(--accent-ink);
+  }
+
+  .site-nav__link[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    left: 0.85rem;
+    right: 0.85rem;
+    bottom: 0.5rem;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  .site-nav__item--book,
+  .site-nav__item--theme {
+    display: none;
+  }
+
+  .site-nav__book[aria-current='page'],
+  .site-header__book[aria-current='page'] {
+    box-shadow: none;
+    transform: translate(var(--shadow-offset), var(--shadow-offset));
+  }
+
+  /* Styles disclosure */
+  .nav-menu {
+    position: relative;
+  }
+
+  .nav-menu__summary {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .nav-menu__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .nav-menu__chev {
+    transition: transform 0.2s var(--ease-out);
+  }
+
+  .nav-menu[open] .nav-menu__chev {
+    transform: rotate(180deg);
+  }
+
+  .nav-menu__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .nav-menu__link {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: var(--tap);
+    padding: 0.3rem 0.85rem;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .nav-menu__link:hover {
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+  }
+
+  .nav-menu__link[aria-current='page'] {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .nav-menu__link[aria-current='page'] .nav-menu__no {
+    color: var(--accent);
+  }
+
+  .nav-menu__no {
+    font-size: var(--step--1);
+    min-width: 1.6em;
+  }
+
+  .site-header__tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+
+  .site-header__book {
+    min-width: var(--tap);
+    white-space: nowrap;
+  }
+
+  /* Mobile menu toggle: two bars that cross into an X */
+  .nav-toggle {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    padding: 0 0.4rem;
+    color: var(--ink);
+  }
+
+  .nav-toggle__bars {
+    position: relative;
+    display: block;
+    width: 22px;
+    height: 14px;
+  }
+
+  .nav-toggle__bar {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: currentColor;
+    transition: transform 0.2s var(--ease-out), top 0.2s var(--ease-out);
+  }
+
+  .nav-toggle__bar:nth-child(1) {
+    top: 0;
+  }
+
+  .nav-toggle__bar:nth-child(2) {
+    top: 12px;
+  }
+
+  .nav-toggle[aria-expanded='true'] .nav-toggle__bar:nth-child(1) {
+    top: 6px;
+    transform: rotate(45deg);
+  }
+
+  .nav-toggle[aria-expanded='true'] .nav-toggle__bar:nth-child(2) {
+    top: 6px;
+    transform: rotate(-45deg);
+  }
+
+  .nav-toggle__text {
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  @media (min-width: 900px) {
+    .site-nav {
+      margin-left: var(--space-s);
+    }
+
+    .nav-menu__list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      z-index: 60;
+      min-width: 15rem;
+      padding: 0.35rem;
+      background: var(--paper-3);
+      border: 1px solid var(--ink);
+      box-shadow: var(--shadow-offset) var(--shadow-offset) 0 var(--accent);
+    }
+  }
+
+  @media (max-width: 899.98px) {
+    .site-header__inner {
+      flex-wrap: wrap;
+      gap: var(--space-s);
+    }
+
+    .site-header__tools {
+      order: 2;
+    }
+
+    .nav-toggle {
+      display: inline-flex;
+    }
+
+    .site-nav {
+      order: 3;
+      flex-basis: 100%;
+    }
+
+    /* With JS: a dropdown sheet below the ruler. Without JS: in flow. */
+    html.js .site-nav {
+      position: absolute;
+      top: calc(100% + 10px);
+      left: calc(-1 * var(--gutter));
+      right: calc(-1 * var(--gutter));
+      padding: var(--space-xs) var(--gutter) var(--space-m);
+      background: var(--paper);
+      border-bottom: 1.5px solid var(--ink);
+      box-shadow: 0 18px 28px -18px rgba(0, 0, 0, 0.35);
+    }
+
+    html.js .site-nav:not(.is-open) {
+      display: none;
+    }
+
+    .site-nav__list {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    .site-nav__list > li + li {
+      border-top: 1px solid var(--rule);
+    }
+
+    .site-nav__link {
+      justify-content: flex-start;
+      min-height: 52px;
+      padding: 0 0.25rem;
+      font-family: var(--font-display);
+      font-size: var(--step-2);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .site-nav__link[aria-current='page']::after {
+      left: 0.25rem;
+      right: auto;
+      width: 2.5rem;
+      bottom: 0.6rem;
+    }
+
+    .nav-menu__summary {
+      justify-content: space-between;
+    }
+
+    .nav-menu__list {
+      padding: 0 0 0.75rem 0.25rem;
+    }
+
+    .nav-menu__link {
+      padding-left: 0.5rem;
+    }
+
+    .site-nav__item--book {
+      display: block;
+      padding: var(--space-s) 0.25rem 0;
+      border-top: 1px solid var(--rule);
+    }
+
+    .site-nav__book {
+      display: flex;
+      width: 100%;
+      font-size: var(--step-0);
+    }
+
+    .site-header__tools .theme-toggle {
+      display: none;
+    }
+
+    .site-nav__item--theme {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-s);
+      min-height: 52px;
+      padding: 0.25rem 0.25rem 0;
+      border-top: 1px solid var(--rule);
+      margin-top: var(--space-s);
+    }
+
+    .site-nav__theme-label {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: var(--step-0);
+      color: var(--ink-2);
+    }
+
+    .site-nav__item--theme .theme-toggle {
+      border-color: var(--ink);
+    }
+  }
+
+  @media (max-width: 479.98px) {
+    .wordmark__name {
+      font-size: 1.3rem;
+    }
+
+    .nav-toggle__text {
+      display: none;
+    }
+  }
+
+  @media (max-width: 359.98px) {
+    .site-header__inner {
+      gap: var(--space-xs);
+    }
+
+    .wordmark__name {
+      font-size: 1.15rem;
+    }
+
+    .site-header__tools {
+      gap: 0.25rem;
+    }
+  }
+</style>
+
+<script>
+  const header = document.querySelector<HTMLElement>('[data-site-header]');
+  const toggle = header?.querySelector<HTMLButtonElement>('[data-nav-toggle]');
+  const nav = header?.querySelector<HTMLElement>('#site-nav');
+  const menus = header ? Array.from(header.querySelectorAll<HTMLDetailsElement>('[data-nav-menu]')) : [];
+
+  const setOpen = (open: boolean) => {
+    if (!toggle || !nav) return;
+    toggle.setAttribute('aria-expanded', String(open));
+    nav.classList.toggle('is-open', open);
+  };
+
+  const isOpen = () => toggle?.getAttribute('aria-expanded') === 'true';
+
+  const closeMenus = () => {
+    for (const m of menus) m.open = false;
+  };
+
+  toggle?.addEventListener('click', () => setOpen(!isOpen()));
+
+  // A link click means navigation: collapse everything so back/forward cache
+  // restores a tidy header.
+  nav?.addEventListener('click', (e) => {
+    if ((e.target as Element).closest('a')) {
+      setOpen(false);
+      closeMenus();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (isOpen()) {
+      setOpen(false);
+      toggle?.focus();
+    }
+    for (const m of menus) {
+      if (m.open) {
+        m.open = false;
+        if (m.contains(document.activeElement)) m.querySelector<HTMLElement>('summary')?.focus();
+      }
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    const t = e.target as Node;
+    if (header && !header.contains(t)) {
+      setOpen(false);
+      closeMenus();
+      return;
+    }
+    for (const m of menus) if (!m.contains(t)) m.open = false;
+  });
+
+  for (const m of menus) {
+    m.addEventListener('focusout', (e) => {
+      const next = (e as FocusEvent).relatedTarget as Node | null;
+      if (next && !m.contains(next)) m.open = false;
+    });
+  }
+
+  const desktop = window.matchMedia('(min-width: 900px)');
+  desktop.addEventListener('change', () => {
+    setOpen(false);
+    closeMenus();
+  });
+
+  window.addEventListener('pageshow', () => {
+    setOpen(false);
+    closeMenus();
+  });
+</script>

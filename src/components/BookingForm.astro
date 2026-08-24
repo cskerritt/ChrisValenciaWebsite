@@ -1,0 +1,497 @@
+---
+/**
+ * Booking request form. Posts multipart/form-data to POST /api/book.
+ *
+ * Contract (must match server/book.js): name, email, phone?, idea, placement,
+ * size, budget, timing, consent="on", honeypot `website` (must stay empty),
+ * files under `references` (≤ 5 images, ≤ 8 MB each), and, only when the
+ * site is built with PUBLIC_TURNSTILE_SITE_KEY, a `cf-turnstile-response`.
+ *
+ * Works without JavaScript: a plain POST gets a 303 to /thanks/ from the
+ * server. With JavaScript the submit is a fetch, the button shows progress,
+ * server field errors land on the matching inputs, and any failure shows an
+ * inline alert with the phone and Instagram fallbacks.
+ *
+ * The budget ranges are what the client has in mind, not a price list; every
+ * piece is quoted at the consultation.
+ */
+import shop from '../data/shop.json';
+
+const { shop: s, artist } = shop;
+const turnstileSiteKey = (import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '').trim();
+
+const SIZES = [
+  ['palm', 'Palm-sized'],
+  ['hand', 'Hand-sized'],
+  ['half-sleeve', 'Half sleeve'],
+  ['sleeve', 'Full sleeve'],
+  ['back', 'Back piece'],
+  ['other', 'Other / not sure yet'],
+];
+const BUDGETS = [
+  ['under-300', 'Under $300'],
+  ['300-600', '$300 to $600'],
+  ['600-1200', '$600 to $1,200'],
+  ['1200-plus', '$1,200 or more'],
+  ['unsure', 'Not sure yet'],
+];
+const TIMINGS = [
+  ['asap', 'As soon as possible'],
+  ['1-3-months', 'In the next 1 to 3 months'],
+  ['3-plus-months', '3 or more months out'],
+  ['flexible', 'Flexible'],
+];
+---
+
+<form
+  class="booking sheet"
+  id="booking-form"
+  action="/api/book"
+  method="post"
+  enctype="multipart/form-data"
+  novalidate
+  data-booking-form
+  data-tel={s.telephone}
+  data-tel-display={s.telephoneDisplay}
+  data-instagram={artist.instagram}
+  data-instagram-handle={artist.instagramHandle}
+>
+  <span class="sheet-no sheet__no">Booking request</span>
+
+  <p class="booking__status" role="alert" aria-live="assertive" data-booking-status hidden></p>
+
+  <fieldset class="booking__group">
+    <legend class="booking__legend"><span class="sheet-no">No. 01</span> About you</legend>
+    <div class="grid grid--2">
+      <div class="field">
+        <label for="bk-name">Name <span class="booking__req" aria-hidden="true">*</span></label>
+        <input id="bk-name" name="name" type="text" required maxlength="80" autocomplete="name" />
+        <p class="field__error" id="bk-name-err" data-error-for="name" hidden></p>
+      </div>
+      <div class="field">
+        <label for="bk-email">Email <span class="booking__req" aria-hidden="true">*</span></label>
+        <input id="bk-email" name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email" />
+        <p class="field__hint">Chris replies by email, so double-check it.</p>
+        <p class="field__error" id="bk-email-err" data-error-for="email" hidden></p>
+      </div>
+      <div class="field">
+        <label for="bk-phone">Phone <span class="muted">(optional)</span></label>
+        <input id="bk-phone" name="phone" type="tel" maxlength="30" autocomplete="tel" inputmode="tel" />
+        <p class="field__error" id="bk-phone-err" data-error-for="phone" hidden></p>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="booking__group">
+    <legend class="booking__legend"><span class="sheet-no">No. 02</span> The tattoo</legend>
+    <div class="stack">
+      <div class="field">
+        <label for="bk-idea">Your idea <span class="booking__req" aria-hidden="true">*</span></label>
+        <textarea id="bk-idea" name="idea" required minlength="10" maxlength="2000" rows="6"></textarea>
+        <p class="field__hint">
+          Subject, mood, color or black and grey, anything you already know you want or don't want. A
+          sentence or two is plenty.
+        </p>
+        <p class="field__error" id="bk-idea-err" data-error-for="idea" hidden></p>
+      </div>
+      <div class="grid grid--2">
+        <div class="field">
+          <label for="bk-placement">Placement <span class="booking__req" aria-hidden="true">*</span></label>
+          <input id="bk-placement" name="placement" type="text" required maxlength="80" placeholder="Outer forearm, calf, upper back…" />
+          <p class="field__error" id="bk-placement-err" data-error-for="placement" hidden></p>
+        </div>
+        <div class="field">
+          <label for="bk-size">Approximate size <span class="booking__req" aria-hidden="true">*</span></label>
+          <select id="bk-size" name="size" required>
+            <option value="">Choose one</option>
+            {SIZES.map(([v, l]) => <option value={v}>{l}</option>)}
+          </select>
+          <p class="field__error" id="bk-size-err" data-error-for="size" hidden></p>
+        </div>
+        <div class="field">
+          <label for="bk-budget">Budget you have in mind <span class="booking__req" aria-hidden="true">*</span></label>
+          <select id="bk-budget" name="budget" required>
+            <option value="">Choose one</option>
+            {BUDGETS.map(([v, l]) => <option value={v}>{l}</option>)}
+          </select>
+          <p class="field__hint">Not a price list. Chris quotes every piece at the consultation.</p>
+          <p class="field__error" id="bk-budget-err" data-error-for="budget" hidden></p>
+        </div>
+        <div class="field">
+          <label for="bk-timing">Timing <span class="booking__req" aria-hidden="true">*</span></label>
+          <select id="bk-timing" name="timing" required>
+            <option value="">Choose one</option>
+            {TIMINGS.map(([v, l]) => <option value={v}>{l}</option>)}
+          </select>
+          <p class="field__error" id="bk-timing-err" data-error-for="timing" hidden></p>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="booking__group">
+    <legend class="booking__legend"><span class="sheet-no">No. 03</span> References</legend>
+    <div class="field">
+      <label for="bk-files">Reference images <span class="muted">(optional)</span></label>
+      <input id="bk-files" name="references" type="file" accept="image/*" multiple data-booking-files />
+      <p class="field__hint">Up to 5 images, 8 MB each. Photos of the spot, sketches, other tattoos you like.</p>
+      <p class="field__error" id="bk-files-err" data-error-for="references" hidden></p>
+      <ul class="booking__files" role="list" data-booking-file-list hidden></ul>
+    </div>
+  </fieldset>
+
+  <div class="field field--check booking__consent">
+    <input id="bk-consent" name="consent" type="checkbox" value="on" required />
+    <label for="bk-consent">
+      I'm 18 or older and I'm okay with Chris contacting me about this request.
+      <span class="booking__req" aria-hidden="true">*</span>
+    </label>
+    <p class="field__error booking__consent-err" id="bk-consent-err" data-error-for="consent" hidden></p>
+  </div>
+
+  {/* Honeypot: hidden from people and assistive tech; bots that fill it are dropped silently. */}
+  <div class="booking__hp" aria-hidden="true">
+    <label for="bk-website">Website</label>
+    <input id="bk-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+  </div>
+
+  {
+    turnstileSiteKey && (
+      <div class="booking__turnstile">
+        <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="auto" />
+      </div>
+    )
+  }
+
+  <div class="booking__actions">
+    <button class="btn btn--primary booking__submit" type="submit" data-booking-submit>
+      <span data-booking-submit-label>Send booking request</span>
+    </button>
+    <p class="booking__fallback muted small">
+      Rather talk? Call {s.name} at <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a> or message
+      <a href={artist.instagram} rel="me noopener">{artist.instagramHandle}</a> on Instagram.
+    </p>
+  </div>
+</form>
+
+{turnstileSiteKey && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>}
+
+<style is:global>
+  .booking {
+    --mark-inset: -9px;
+    display: grid;
+    gap: var(--space-l);
+    background: var(--paper-3);
+  }
+
+  .booking .sheet__no {
+    background: var(--paper-3);
+  }
+
+  .booking__group {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+
+  .booking__legend {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+    padding: 0;
+    margin-bottom: var(--space-s);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-2);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+
+  .booking__legend + * {
+    padding-top: var(--space-s);
+    border-top: 1px solid var(--rule);
+  }
+
+  .booking__req {
+    color: var(--accent-ink);
+    font-weight: 700;
+  }
+
+  .booking__consent {
+    grid-template-columns: auto 1fr;
+    padding: var(--space-s);
+    border: 1px dashed var(--rule-2);
+  }
+
+  .booking__consent > input {
+    margin-top: 0.2em;
+  }
+
+  .booking__consent-err {
+    grid-column: 1 / -1;
+  }
+
+  .booking__hp {
+    position: absolute;
+    left: -10000px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .booking__files {
+    margin: 0.25rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--step--1);
+  }
+
+  .booking__files li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1em;
+    padding: 0.35em 0;
+    border-bottom: 1px dotted var(--rule-2);
+  }
+
+  .booking__files .is-bad {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  .booking__actions {
+    display: grid;
+    gap: var(--space-s);
+    padding-top: var(--space-s);
+    border-top: 1.5px solid var(--ink);
+  }
+
+  .booking__submit {
+    justify-self: start;
+    min-width: 16rem;
+  }
+
+  .booking__submit[aria-busy='true'] {
+    cursor: progress;
+  }
+
+  .booking__submit[aria-busy='true'] [data-booking-submit-label]::after {
+    content: '…';
+  }
+
+  .booking__status {
+    padding: var(--space-s) var(--space-m);
+    border: 1.5px solid var(--accent-ink);
+    border-left-width: 6px;
+    background: var(--accent-soft);
+    font-weight: 500;
+  }
+
+  .booking__status--ok {
+    border-color: var(--sage-ink);
+    background: var(--sage-soft);
+  }
+
+  .booking__turnstile {
+    min-height: 65px;
+  }
+
+  @media (max-width: 599.98px) {
+    .booking__submit {
+      justify-self: stretch;
+      min-width: 0;
+    }
+  }
+</style>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-booking-form]');
+
+  if (form) {
+    const status = form.querySelector<HTMLElement>('[data-booking-status]')!;
+    const submit = form.querySelector<HTMLButtonElement>('[data-booking-submit]')!;
+    const label = submit.querySelector<HTMLElement>('[data-booking-submit-label]')!;
+    const fileInput = form.querySelector<HTMLInputElement>('[data-booking-files]');
+    const fileList = form.querySelector<HTMLElement>('[data-booking-file-list]');
+    const idleLabel = label.textContent || 'Send booking request';
+
+    const MAX_FILES = 5;
+    const MAX_BYTES = 8 * 1024 * 1024;
+    const tel = form.dataset.tel || '';
+    const telDisplay = form.dataset.telDisplay || tel;
+    const ig = form.dataset.instagram || '';
+    const igHandle = form.dataset.instagramHandle || 'Instagram';
+
+    const fallbackHtml = () =>
+      ` You can also call <a href="tel:${tel}">${telDisplay}</a> or message <a href="${ig}" rel="me noopener">${igHandle}</a> on Instagram.`;
+
+    const escape = (s: string) =>
+      s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
+
+    const clearErrors = () => {
+      form.querySelectorAll<HTMLElement>('[data-error-for]').forEach((el) => {
+        el.textContent = '';
+        el.hidden = true;
+      });
+      form.querySelectorAll<HTMLElement>('[aria-invalid="true"]').forEach((el) => {
+        el.removeAttribute('aria-invalid');
+        const described = (el.getAttribute('aria-describedby') || '')
+          .split(' ')
+          .filter((id) => id && !id.endsWith('-err'))
+          .join(' ');
+        if (described) el.setAttribute('aria-describedby', described);
+        else el.removeAttribute('aria-describedby');
+      });
+    };
+
+    const showFieldError = (name: string, message: string) => {
+      const err = form.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
+      const input = form.elements.namedItem(name) as HTMLElement | null;
+      if (err) {
+        err.textContent = message;
+        err.hidden = false;
+      }
+      if (input && 'setAttribute' in input) {
+        input.setAttribute('aria-invalid', 'true');
+        if (err?.id) {
+          const ids = new Set((input.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
+          ids.add(err.id);
+          input.setAttribute('aria-describedby', Array.from(ids).join(' '));
+        }
+      }
+      return input;
+    };
+
+    const showStatus = (html: string, ok = false) => {
+      status.innerHTML = html;
+      status.classList.toggle('booking__status--ok', ok);
+      status.hidden = false;
+      status.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+
+    const hideStatus = () => {
+      status.hidden = true;
+      status.textContent = '';
+    };
+
+    const setBusy = (busy: boolean) => {
+      submit.disabled = busy;
+      submit.setAttribute('aria-busy', String(busy));
+      label.textContent = busy ? 'Sending' : idleLabel;
+    };
+
+    // Native validation first, but surface it in our own error slots so the
+    // message sits next to the field in both themes.
+    const nativeCheck = (): HTMLElement | null => {
+      let first: HTMLElement | null = null;
+      const fields = Array.from(form.elements) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>;
+      for (const f of fields) {
+        if (!f.name || f.name === 'website' || f.type === 'submit' || f.type === 'file') continue;
+        if (typeof f.checkValidity !== 'function' || f.checkValidity()) continue;
+        const msg =
+          f.validity.valueMissing
+            ? f.type === 'checkbox'
+              ? 'Please confirm the consent checkbox before sending.'
+              : 'This field is required.'
+            : f.validity.typeMismatch
+              ? 'Enter a valid email address so Chris can reply.'
+              : f.validity.tooShort
+                ? 'Describe your idea in at least a sentence (10 or more characters).'
+                : f.validationMessage || 'Please check this field.';
+        const el = showFieldError(f.name, msg);
+        if (!first) first = el;
+      }
+      return first;
+    };
+
+    const fileCheck = (): string | null => {
+      if (!fileInput || !fileInput.files) return null;
+      const files = Array.from(fileInput.files);
+      if (files.length > MAX_FILES) return `Attach at most ${MAX_FILES} images.`;
+      const big = files.find((f) => f.size > MAX_BYTES);
+      if (big) return `"${big.name}" is over 8 MB. Resize it or choose a smaller image.`;
+      const notImage = files.find((f) => f.type && !f.type.startsWith('image/'));
+      if (notImage) return `"${notImage.name}" is not an image. Only image files can be attached.`;
+      return null;
+    };
+
+    const fmt = (n: number) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
+
+    fileInput?.addEventListener('change', () => {
+      if (!fileList || !fileInput.files) return;
+      const files = Array.from(fileInput.files);
+      fileList.innerHTML = files
+        .map((f, i) => {
+          const bad = f.size > MAX_BYTES || (f.type && !f.type.startsWith('image/')) || i >= MAX_FILES;
+          return `<li${bad ? ' class="is-bad"' : ''}><span>${escape(f.name)}</span><span>${fmt(f.size)}</span></li>`;
+        })
+        .join('');
+      fileList.hidden = files.length === 0;
+      const problem = fileCheck();
+      const err = form.querySelector<HTMLElement>('[data-error-for="references"]');
+      if (err) {
+        err.textContent = problem || '';
+        err.hidden = !problem;
+      }
+      fileInput.toggleAttribute('aria-invalid', Boolean(problem));
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      hideStatus();
+      clearErrors();
+
+      const firstInvalid = nativeCheck();
+      const fileProblem = fileCheck();
+      if (fileProblem) showFieldError('references', fileProblem);
+      if (firstInvalid || fileProblem) {
+        (firstInvalid || fileInput)?.focus();
+        showStatus('Please check the highlighted fields and try again.');
+        return;
+      }
+
+      setBusy(true);
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        let body: { ok?: boolean; message?: string; errors?: Record<string, string[] | string> } = {};
+        try {
+          body = await res.json();
+        } catch {
+          /* non-JSON error page; the generic message below covers it */
+        }
+        if (res.ok && body.ok) {
+          showStatus('Sent. Taking you to the confirmation page.', true);
+          window.location.href = '/thanks/';
+          return;
+        }
+        let first: HTMLElement | null = null;
+        if (body.errors) {
+          for (const [name, msgs] of Object.entries(body.errors)) {
+            const msg = Array.isArray(msgs) ? msgs[0] : msgs;
+            if (!msg) continue;
+            const el = showFieldError(name, msg);
+            if (!first) first = el;
+          }
+        }
+        const generic =
+          body.message ||
+          (res.status === 429
+            ? 'Too many requests from your connection. Please wait 15 minutes and try again, or call the shop.'
+            : 'We could not send your request just now. Nothing you typed was lost.');
+        showStatus(`${escape(generic)}${res.status === 400 && body.errors ? '' : fallbackHtml()}`);
+        (first || submit).focus();
+      } catch {
+        showStatus(`We could not reach the server. Check your connection and try again.${fallbackHtml()}`);
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+</script>

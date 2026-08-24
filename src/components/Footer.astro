@@ -1,0 +1,301 @@
+---
+/**
+ * Site footer: NAP block (address as <address>, tel/mail links, Instagram),
+ * the full internal link mesh (styles, locations, info), Powerline credit,
+ * copyright, colophon, and an outlined display wordmark on halftone paper.
+ * Every fact here comes from src/data/shop.json.
+ */
+import shop from '../data/shop.json';
+import { STYLE_PAGES, LOCATION_PAGES, INFO_PAGES } from '../lib/seo';
+
+const { shop: s, artist } = shop;
+const year = new Date().getFullYear();
+const dayAbbr = (d: string) => d.slice(0, 3);
+const dayRange = `${dayAbbr(s.days[0])}–${dayAbbr(s.days[s.days.length - 1])}`;
+const telHref = `tel:${s.telephone}`;
+const mailHref = `mailto:${s.email}`;
+const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+  `${s.streetAddress}, ${s.addressLocality}, ${s.addressRegion} ${s.postalCode}`,
+)}`;
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<footer class="site-footer halftone halftone--up">
+  <div class="site-footer__rule" aria-hidden="true"></div>
+
+  <div class="site-footer__grid container">
+    <div class="site-footer__nap">
+      <p class="site-footer__name">
+        <span class="site-footer__wordmark">Chris Valencia</span>
+        <span class="site-footer__tag">Tattoo · {s.addressLocality}, Rhode Island</span>
+      </p>
+      <p class="site-footer__resident">
+        Resident artist at <a href={s.url} rel="noopener">{s.name}</a>.
+      </p>
+
+      <address class="nap">
+        <a class="nap__line nap__shop" href={s.url} rel="noopener">{s.name}</a>
+        <a class="nap__line" href={directions} rel="noopener">
+          <span>{s.streetAddress}<br />{s.addressLocality}, {s.addressRegion} {s.postalCode}</span>
+        </a>
+        <a class="nap__line" href={telHref}>{s.telephoneDisplay}</a>
+        <a class="nap__line" href={mailHref}>{s.email}</a>
+        <a class="nap__line" href={artist.instagram} rel="me noopener">{artist.instagramHandle} on Instagram</a>
+      </address>
+
+      <p class="site-footer__hours">
+        <span class="stamp">{s.hoursNote}</span>
+        <span class="site-footer__days">{dayRange}</span>
+      </p>
+    </div>
+
+    <nav class="site-footer__col" aria-labelledby="footer-styles">
+      <h2 class="site-footer__h" id="footer-styles">Styles</h2>
+      <ul class="site-footer__list" role="list">
+        {
+          STYLE_PAGES.map((l, i) => (
+            <li>
+              <a href={l.path}>
+                <span class="site-footer__no" aria-hidden="true">{pad(i + 1)}</span>
+                {l.name}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <nav class="site-footer__col" aria-labelledby="footer-serving">
+      <h2 class="site-footer__h" id="footer-serving">Serving</h2>
+      <ul class="site-footer__list" role="list">
+        {
+          LOCATION_PAGES.map((l) => (
+            <li>
+              <a href={l.path}>{l.name}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <nav class="site-footer__col" aria-labelledby="footer-info">
+      <h2 class="site-footer__h" id="footer-info">Info</h2>
+      <ul class="site-footer__list" role="list">
+        {
+          INFO_PAGES.map((l) => (
+            <li>
+              <a href={l.path}>{l.name}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+
+  <div class="site-footer__bottom container">
+    <p>© {year} Chris Valencia. Resident artist at <a href={s.url} rel="noopener">Powerline Tattoo</a>, {s.addressLocality}, RI.</p>
+    <p class="site-footer__colophon">Set in Bricolage Grotesque, Fraunces and Inter Tight.</p>
+  </div>
+
+  <p class="site-footer__mark" aria-hidden="true">Chris Valencia</p>
+</footer>
+
+<style is:global>
+  .site-footer {
+    margin-top: var(--space-2xl);
+    background: var(--paper-2);
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  .site-footer__rule {
+    height: 8px;
+    background-color: var(--ink);
+    -webkit-mask-image: var(--rule-hand-svg);
+    -webkit-mask-size: 120px 8px;
+    -webkit-mask-repeat: repeat-x;
+    -webkit-mask-position: left center;
+    mask-image: var(--rule-hand-svg);
+    mask-size: 120px 8px;
+    mask-repeat: repeat-x;
+    mask-position: left center;
+  }
+
+  @supports not ((-webkit-mask-repeat: no-repeat) or (mask-repeat: no-repeat)) {
+    .site-footer__rule {
+      height: 1px;
+    }
+  }
+
+  .site-footer__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+    gap: var(--space-l) var(--space-m);
+    padding-block: var(--space-xl) var(--space-l);
+  }
+
+  .site-footer__name {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .site-footer__wordmark {
+    font-family: var(--font-display);
+    font-size: var(--step-3);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.035em;
+  }
+
+  .site-footer__tag {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-0);
+    color: var(--ink-2);
+  }
+
+  .site-footer__resident {
+    margin-top: var(--space-s);
+    color: var(--ink-2);
+  }
+
+  .nap {
+    display: grid;
+    gap: 0;
+    margin-top: var(--space-m);
+    max-width: 22rem;
+  }
+
+  .nap__line {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    width: fit-content;
+    padding-block: 0.2rem;
+    text-decoration-color: transparent;
+    line-height: 1.4;
+  }
+
+  .nap__line:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .nap__shop {
+    font-weight: 600;
+  }
+
+  .site-footer__hours {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-s) var(--space-m);
+    margin-top: var(--space-m);
+  }
+
+  .site-footer__days {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-1);
+    font-weight: 600;
+  }
+
+  .site-footer__h {
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid var(--rule-2);
+  }
+
+  .site-footer__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .site-footer__list a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    padding-block: 0.2rem;
+    line-height: 1.35;
+    text-decoration-color: transparent;
+  }
+
+  .site-footer__list a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .site-footer__no {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: var(--step--1);
+    color: var(--accent-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .site-footer__bottom {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-xs) var(--space-m);
+    padding-block: var(--space-m);
+    border-top: 1px solid var(--rule-2);
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .site-footer__colophon {
+    font-family: var(--font-serif);
+    font-style: italic;
+  }
+
+  /* Outlined wordmark bleeding off the bottom of the page */
+  .site-footer__mark {
+    margin: 0 0 -0.16em;
+    padding-inline: var(--gutter);
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(3rem, 12vw, 12rem);
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    white-space: nowrap;
+    text-align: center;
+    color: var(--rule-2);
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  @supports (-webkit-text-stroke: 1px black) {
+    .site-footer__mark {
+      color: transparent;
+      -webkit-text-stroke: 1.5px var(--ink);
+      opacity: 0.55;
+    }
+  }
+
+  @media (max-width: 899.98px) {
+    .site-footer__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .site-footer__nap {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 479.98px) {
+    .site-footer__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

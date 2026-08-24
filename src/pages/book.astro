@@ -1,0 +1,173 @@
+---
+/**
+ * /book/ — the site's one conversion page. Answer-first paragraph on what
+ * happens after you submit, the form, and a sidebar with what to include plus
+ * the shop's NAP. No prices or deposit amounts: those are confirmed when Chris
+ * replies (see src/data/shop.json `unconfirmed`).
+ */
+import Base from '../layouts/Base.astro';
+import BookingForm from '../components/BookingForm.astro';
+import shop from '../data/shop.json';
+import { person, tattooParlor } from '../lib/schema';
+
+const title = 'Request a Booking | Chris Valencia Tattoo, Cranston RI';
+const description =
+  'Send Chris Valencia your tattoo idea, placement and reference images. He replies by email to set up a consultation at Powerline Tattoo in Cranston, RI.';
+
+const { shop: s, artist } = shop;
+const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+  `${s.streetAddress}, ${s.addressLocality}, ${s.addressRegion} ${s.postalCode}`,
+)}`;
+const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0, 3)}`;
+---
+
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/book/"
+  breadcrumbs={[{ name: 'Book', path: '/book/' }]}
+  jsonLd={[person(), tattooParlor()]}
+  bodyClass="page-book"
+>
+  <section class="section container book">
+    <header class="book__head stack">
+      <p class="eyebrow"><span class="sheet-no">No. 04</span> Booking</p>
+      <h1>Request a booking with Chris</h1>
+      <p class="answer">
+        Fill in the form and Chris replies by email to talk through the idea, placement and sizing. For
+        custom work that usually means a consultation before the design is drawn. A deposit holds your
+        appointment date; the amount is confirmed when you book. The shop is by appointment only.
+      </p>
+    </header>
+
+    <div class="book__layout">
+      <div class="book__form reveal">
+        <BookingForm />
+      </div>
+
+      <aside class="book__aside stack--l" aria-labelledby="book-aside-h">
+        <div class="sheet sheet--paper-2 reg-marks reveal" style="--reveal-delay:.1s">
+          <span class="sheet-no sheet__no">What to include</span>
+          <h2 id="book-aside-h" class="book__aside-h">The more you tell him, the faster the reply</h2>
+          <ol class="book__list">
+            <li><strong>The idea in a sentence or two.</strong> Subject, mood, color or black and grey.</li>
+            <li><strong>Placement and a rough size.</strong> A photo of the spot helps with sizing.</li>
+            <li><strong>References.</strong> Sketches, photos, other tattoos with the feel you're after.</li>
+            <li><strong>Timing.</strong> Any date you're working toward, or "flexible".</li>
+            <li><strong>Existing work.</strong> If it's a cover-up or a rework, a clear photo of the old tattoo.</li>
+          </ol>
+          <p class="muted small">
+            Not sure about any of it? Send what you have. Chris works all styles and prefers illustrative,
+            neo-traditional and new-school pieces with a surreal, animated feel.
+          </p>
+        </div>
+
+        <div class="sheet reveal" style="--reveal-delay:.2s">
+          <span class="sheet-no sheet__no">The shop</span>
+          <address class="book__nap">
+            <a class="book__nap-line book__nap-shop" href={s.url} rel="noopener">{s.name}</a>
+            <a class="book__nap-line" href={directions} rel="noopener">
+              {s.streetAddress}<br />{s.addressLocality}, {s.addressRegion} {s.postalCode}
+            </a>
+            <a class="book__nap-line" href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a>
+            <a class="book__nap-line" href={artist.instagram} rel="me noopener">{artist.instagramHandle} on Instagram</a>
+          </address>
+          <p class="book__hours">
+            <span class="stamp">{s.hoursNote}</span>
+            <span class="serif">{dayRange}</span>
+          </p>
+          <p class="muted small">
+            Street and lot parking near the shop; confirm the details when you book. Directions from every
+            nearby city are on the <a href="/tattoo-artist/cranston/">Cranston page</a>.
+          </p>
+        </div>
+
+        <p class="book__links small">
+          Questions first? Read the <a href="/faq/">FAQ</a>, <a href="/pricing/">how quoting works</a>, or
+          browse the <a href="/portfolio/">portfolio</a>.
+        </p>
+      </aside>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .book__head {
+    max-width: 60rem;
+    margin-bottom: var(--space-xl);
+  }
+
+  .book__layout {
+    display: grid;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  .book__aside-h {
+    font-size: var(--step-1);
+    margin-bottom: var(--space-s);
+  }
+
+  .book__list {
+    padding-left: 1.3em;
+    margin-bottom: var(--space-s);
+  }
+
+  .book__list li + li {
+    margin-top: 0.5em;
+  }
+
+  .book__list li::marker {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    color: var(--accent-ink);
+  }
+
+  .book__nap {
+    display: grid;
+  }
+
+  .book__nap-line {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    width: fit-content;
+    text-decoration-color: transparent;
+    line-height: 1.4;
+  }
+
+  .book__nap-line:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .book__nap-shop {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-1);
+  }
+
+  .book__hours {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-s) var(--space-m);
+    margin-block: var(--space-s);
+  }
+
+  .book__hours .serif {
+    font-weight: 600;
+    font-size: var(--step-1);
+  }
+
+  @media (min-width: 960px) {
+    .book__layout {
+      grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr);
+    }
+
+    .book__aside {
+      position: sticky;
+      top: calc(var(--header-h) + var(--space-m));
+    }
+  }
+</style>

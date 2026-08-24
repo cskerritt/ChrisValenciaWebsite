@@ -1,0 +1,87 @@
+---
+/**
+ * Per-page <head> metadata: title, description, canonical, robots,
+ * Open Graph + Twitter (absolute image), theme-color for both schemes,
+ * favicon and sitemap discovery.
+ *
+ * Build-time guard rails (warn only, never fail): title <= 60 chars,
+ * description 120–160 chars, per the plan's per-page rules.
+ */
+import {
+  absoluteUrl,
+  canonicalPathFor,
+  SITE_NAME,
+  DEFAULT_OG_IMAGE,
+  DEFAULT_OG_IMAGE_ALT,
+  TITLE_MAX,
+  DESCRIPTION_MIN,
+  DESCRIPTION_MAX,
+} from '../lib/seo';
+
+export interface Props {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  ogImage?: string;
+  ogImageAlt?: string;
+  ogType?: 'website' | 'article' | 'profile';
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonicalPath,
+  ogImage,
+  ogImageAlt,
+  ogType = 'website',
+  noindex = false,
+} = Astro.props;
+
+const path = canonicalPathFor(canonicalPath);
+const canonical = absoluteUrl(path);
+const usingDefaultImage = !ogImage;
+const image = absoluteUrl(ogImage ?? DEFAULT_OG_IMAGE);
+const imageAlt = ogImageAlt ?? DEFAULT_OG_IMAGE_ALT;
+const robots = noindex
+  ? 'noindex, nofollow'
+  : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+
+if (title.length > TITLE_MAX) {
+  console.warn(`[seo] ${path}: title is ${title.length} chars (max ${TITLE_MAX}): "${title}"`);
+}
+if (!noindex && (description.length < DESCRIPTION_MIN || description.length > DESCRIPTION_MAX)) {
+  console.warn(
+    `[seo] ${path}: description is ${description.length} chars (want ${DESCRIPTION_MIN}–${DESCRIPTION_MAX})`,
+  );
+}
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<meta name="robots" content={robots} />
+
+<meta property="og:type" content={ogType} />
+<meta property="og:site_name" content={SITE_NAME} />
+<meta property="og:locale" content="en_US" />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={image} />
+<meta property="og:image:alt" content={imageAlt} />
+{usingDefaultImage && <meta property="og:image:width" content="1200" />}
+{usingDefaultImage && <meta property="og:image:height" content="630" />}
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={image} />
+<meta name="twitter:image:alt" content={imageAlt} />
+
+<meta name="theme-color" content="#f4ede0" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
+<meta name="generator" content={Astro.generator} />

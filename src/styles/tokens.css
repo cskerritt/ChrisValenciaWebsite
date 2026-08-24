@@ -1,0 +1,133 @@
+/* ==========================================================================
+   Chris Valencia Tattoo — design tokens ("Flash Sheet")
+
+   Light-first. The dark theme applies under [data-theme="dark"] (manual
+   toggle, stored in localStorage) or under prefers-color-scheme: dark unless
+   [data-theme="light"] pins light. Every token lives on :root so any
+   component can read it. No Tailwind, no preprocessor.
+
+   Contrast (WCAG AA) — measured against --paper / --paper-2:
+     --ink-2       8.2 / 7.4   secondary text
+     --accent-ink  6.0 / 5.4   links, small accent text
+     --accent-fill 5.2 (with --on-accent text)   button fills
+     --accent      4.0         DISPLAY / LARGE TEXT / decoration ONLY
+     --sage-ink    5.7 / 5.1   sage text on any ground
+     --sage        4.9 / 4.4   sage text on --paper only, otherwise decoration
+   Dark theme equivalents are all >= 6:1.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Ground + ink */
+  --paper: #f4ede0;   /* cream paper */
+  --paper-2: #eae1cf; /* deeper cream: footer, panels, fields */
+  --paper-3: #fbf7ee; /* lifted paper: frames, tiles, dialogs */
+  --ink: #161412;
+  --ink-2: #4a443d;
+  --rule: #c9bea8;    /* hairlines */
+  --rule-2: #a99e88;  /* firmer hairlines, sheet borders */
+
+  /* Vermilion, three cuts on purpose (see contrast table above) */
+  --accent: #d63a1e;
+  --accent-ink: #a82a12;
+  --accent-fill: #b92f14;
+  --on-accent: #f4ede0;
+  --accent-soft: rgba(214, 58, 30, 0.12);
+
+  /* Sage, sparingly */
+  --sage: #5e6b52;
+  --sage-ink: #55614a;
+  --sage-soft: rgba(94, 107, 82, 0.14);
+
+  /* Type: display / serif italic / grotesk body */
+  --font-display: 'Bricolage Grotesque', 'Anton', Impact, 'Arial Narrow', sans-serif;
+  --font-serif: 'Fraunces', 'Iowan Old Style', 'Palatino', Georgia, serif;
+  --font-body: 'Inter Tight', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Fluid type scale, 360px -> 1180px viewport */
+  --step--1: clamp(0.875rem, 0.85rem + 0.12vw, 0.9375rem);
+  --step-0: clamp(1rem, 0.945rem + 0.24vw, 1.125rem);
+  --step-1: clamp(1.2rem, 1.12rem + 0.34vw, 1.375rem);
+  --step-2: clamp(1.45rem, 1.32rem + 0.59vw, 1.75rem);
+  --step-3: clamp(1.8rem, 1.55rem + 1.12vw, 2.375rem);
+  --step-4: clamp(2.25rem, 1.81rem + 1.95vw, 3.25rem);
+  --step-5: clamp(2.75rem, 1.98rem + 3.41vw, 4.5rem);
+  --step-6: clamp(3.5rem, 2.18rem + 5.85vw, 6.5rem);
+
+  /* Space */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-s: 1rem;
+  --space-m: 1.5rem;
+  --space-l: clamp(2rem, 1.5rem + 2vw, 3rem);
+  --space-xl: clamp(3rem, 2rem + 4vw, 5rem);
+  --space-2xl: clamp(4rem, 2.5rem + 6vw, 7rem);
+
+  /* Layout */
+  --max: 1180px;
+  --max-prose: 68ch;
+  --gutter: clamp(16px, 4vw, 48px);
+  --header-h: 4.25rem;
+  --radius: 2px;
+  --tap: 44px;
+
+  /* Ornaments */
+  --mark-size: 18px;
+  --mark-inset: 10px;
+  --halftone-opacity: 0.12;
+  --shadow-offset: 4px;
+  /* Registration mark: circle + crosshair + centre dot. Used as a mask, so
+     the colour comes from background-color (see .reg-marks). */
+  --mark-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='5.5' fill='none' stroke='%23000' stroke-width='1.25'/%3E%3Ccircle cx='10' cy='10' r='1.1' fill='%23000'/%3E%3Cpath d='M10 0v20M0 10h20' fill='none' stroke='%23000' stroke-width='1.25'/%3E%3C/svg%3E");
+  /* Hand-drawn rule: a wobbling pen line with a faint second pass (ink bleed).
+     Tiles seamlessly at 120x8. */
+  --rule-hand-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8'%3E%3Cpath d='M0 4C8 2 14 2 22 4S36 7 46 5S62 2 72 3S90 7 100 6S112 6 120 4' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3Cpath d='M0 4.9C8 2.9 14 2.9 22 4.9S36 7.9 46 5.9S62 2.9 72 3.9S90 7.9 100 6.9S112 6.9 120 4.9' fill='none' stroke='%23000' stroke-width='.7' stroke-opacity='.5'/%3E%3C/svg%3E");
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur: 0.55s;
+}
+
+/* Dark theme — manual toggle wins in both directions */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #141210;
+  --paper-2: #1d1a16;
+  --paper-3: #232019;
+  --ink: #f1ead9;
+  --ink-2: #b8ae9c;
+  --rule: #3a342c;
+  --rule-2: #57503f;
+  --accent: #ff5a3c;
+  --accent-ink: #ff6b4f;
+  --accent-fill: #ff5a3c;
+  --on-accent: #141210;
+  --accent-soft: rgba(255, 90, 60, 0.16);
+  --sage: #9baa8c;
+  --sage-ink: #a7b598;
+  --sage-soft: rgba(155, 170, 140, 0.16);
+  --halftone-opacity: 0.14;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --paper: #141210;
+    --paper-2: #1d1a16;
+    --paper-3: #232019;
+    --ink: #f1ead9;
+    --ink-2: #b8ae9c;
+    --rule: #3a342c;
+    --rule-2: #57503f;
+    --accent: #ff5a3c;
+    --accent-ink: #ff6b4f;
+    --accent-fill: #ff5a3c;
+    --on-accent: #141210;
+    --accent-soft: rgba(255, 90, 60, 0.16);
+    --sage: #9baa8c;
+    --sage-ink: #a7b598;
+    --sage-soft: rgba(155, 170, 140, 0.16);
+    --halftone-opacity: 0.14;
+  }
+}
