@@ -1,0 +1,489 @@
+---
+/**
+ * /aftercare/ — six numbered steps (HowTo JSON-LD), what healing looks like,
+ * and when to contact the shop. General guidance only: the page says, twice,
+ * that the instructions Chris gives at the appointment come first. Printable:
+ * the header and footer already hide in print, and the CTA hides here too.
+ */
+import Base from '../layouts/Base.astro';
+import Cta from '../components/Cta.astro';
+import shop from '../data/shop.json';
+import { person, howTo } from '../lib/schema';
+
+const { shop: s } = shop;
+
+const title = 'Tattoo Aftercare | Chris Valencia, Cranston RI';
+const description =
+  'How to care for a new tattoo from Chris Valencia: washing, moisturizing, what to avoid for two weeks, what normal healing looks like, and when to call the shop.';
+
+const steps = [
+  {
+    name: 'Leave the wrap on as instructed',
+    text: 'Chris wraps the fresh tattoo before you leave. Keep the wrap on for the time he gives you; it depends on the kind of wrap he used. Take it off with clean hands, and do not re-wrap the tattoo unless he told you to.',
+  },
+  {
+    name: 'Wash it gently',
+    text: 'Wash the tattoo with lukewarm water and a mild, fragrance-free soap, using clean fingertips rather than a cloth or sponge. Rinse well, then pat dry with a clean paper towel. Two or three washes a day through the first two weeks is plenty.',
+  },
+  {
+    name: 'Moisturize, thinly',
+    text: 'Once the skin is dry, apply a thin layer of unscented moisturizer. Thin means you can barely see it; a thick coat traps moisture and slows healing. Reapply when the tattoo feels tight or dry, and keep the tube clean.',
+  },
+  {
+    name: 'Keep it out of water, sun and the gym for two weeks',
+    text: 'No soaking: no baths, pools, hot tubs or ocean for two weeks. Quick showers are fine. Keep the tattoo out of direct sun, and once it has healed, use sunscreen to protect the color. Skip the gym and anything that gets the area sweaty or rubbed.',
+  },
+  {
+    name: 'Do not pick, scratch or shave it',
+    text: 'Peeling and itching are a normal part of the second week. Let the flakes fall off on their own; picking pulls ink out and leaves light spots. Pat the itch instead of scratching, wear loose clean clothing over the area, and do not shave over the tattoo until it is fully healed.',
+  },
+  {
+    name: 'Know when to get help',
+    text: 'Some redness, swelling and clear fluid are normal for the first few days. Redness or heat that spreads, swelling that gets worse after day three, pus, a fever or a rash are not. Contact the shop, and if it is getting worse, see a doctor.',
+  },
+];
+
+const timeline = [
+  { when: 'Days 1 to 3', what: 'Tender, red and a little swollen. It may weep clear fluid and some extra ink. Wash and moisturize as above.' },
+  { when: 'Days 4 to 14', what: 'Peeling and itching. The tattoo looks dull and flaky while the top layer sheds. Do not pick.' },
+  { when: 'Weeks 3 to 4', what: 'The surface has healed. Color looks settled, though the skin may still be shiny or slightly raised.' },
+  { when: 'Months 1 to 2', what: 'The deeper layers finish. Dryness fades and the tattoo reads like part of your skin.' },
+];
+
+const dos = [
+  'Wash your hands before you touch it',
+  'Thin layer of unscented moisturizer',
+  'Loose, clean clothing over the area',
+  'Sunscreen once it has healed',
+  'Water, food and sleep; healing is work',
+];
+const donts = [
+  'Soak it: baths, pools, hot tubs, ocean',
+  'Direct sun or tanning beds',
+  'Gym, heavy sweat or friction for two weeks',
+  'Picking, scratching or shaving over it',
+  'Re-wrapping it unless Chris told you to',
+];
+
+const jsonLd = [
+  person(),
+  howTo('Tattoo aftercare', steps, {
+    description: 'How to care for a new tattoo during the first two weeks: wrap, washing, moisturizing, what to avoid, and when to contact the shop.',
+    path: '/aftercare/',
+  }),
+];
+
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/aftercare/"
+  breadcrumbs={[{ name: 'Aftercare', path: '/aftercare/' }]}
+  jsonLd={jsonLd}
+  bodyClass="page-aftercare"
+>
+  <section class="section container aftercare">
+    <header class="aftercare__head">
+      <div class="aftercare__intro">
+        <p class="eyebrow"><span class="sheet-no">No. 07</span> Aftercare</p>
+        <h1>How to take care of your new tattoo</h1>
+        <p class="answer">
+          Keep the wrap on for as long as Chris tells you, wash the tattoo gently with fragrance-free soap, apply a
+          thin layer of unscented moisturizer, and keep it out of the sun, pools, baths and the gym for two weeks.
+          Don't pick the flakes. Follow the specific instructions Chris gives you at your appointment; they
+          override anything here.
+        </p>
+        <div class="cluster">
+          <span class="stamp">Chris's instructions come first</span>
+          <button type="button" class="btn btn--sm js-only" data-print>Print this sheet</button>
+        </div>
+      </div>
+      <p class="aftercare__note">
+        This is general guidance, not medical advice. If something looks or feels wrong, contact the shop and, if
+        it's getting worse, see a doctor.
+      </p>
+    </header>
+
+    <div class="aftercare__grid">
+      <ol class="steps reg-marks" role="list" aria-label="Aftercare steps">
+        {
+          steps.map((step, i) => (
+            <li class="step">
+              <span class="step__num" aria-hidden="true">{pad(i + 1)}</span>
+              <div class="step__body">
+                <h2 class="step__name">
+                  <span class="sr-only">Step {i + 1}: </span>
+                  {step.name}
+                </h2>
+                <p class="step__text">{step.text}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+
+      <aside class="aftercare__aside">
+        <div class="sheet sheet--paper-2 reg-marks dodont">
+          <span class="sheet-no sheet__no">Quick sheet</span>
+          <div class="dodont__cols">
+            <div>
+              <p class="dodont__h dodont__h--do">Do</p>
+              <ul class="dodont__list">{dos.map((d) => <li>{d}</li>)}</ul>
+            </div>
+            <div>
+              <p class="dodont__h dodont__h--dont">Don't</p>
+              <ul class="dodont__list dodont__list--dont">{donts.map((d) => <li>{d}</li>)}</ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="call sheet reg-marks">
+          <span class="sheet-no sheet__no">When to call the shop</span>
+          <p class="call__lead">Spreading redness or heat, swelling that gets worse after day three, pus, fever, or a rash beyond the tattoo.</p>
+          <address class="call__nap">
+            <a class="call__line call__tel" href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a>
+            <a class="call__line" href={`mailto:${s.email}`}>{s.email}</a>
+            <span class="call__line muted">{s.name}, {s.days[0].slice(0, 3)}–{s.days[s.days.length - 1].slice(0, 3)}</span>
+          </address>
+          <p class="small muted">Getting worse fast? See a doctor first; an infection needs medical care.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section container aftercare-q" aria-labelledby="heal-h">
+    <div class="aftercare-q__grid">
+      <div class="stack">
+        <h2 id="heal-h">How long does a tattoo take to heal?</h2>
+        <p class="answer">
+          About two to three weeks for the surface, and a couple of months for the deeper layers to fully settle.
+          Expect tenderness and some redness for the first few days, then peeling and itching through the second
+          week, then a dull, slightly cloudy look that clears as the skin finishes. Color and size change the
+          timeline a little.
+        </p>
+      </div>
+      <dl class="timeline">
+        {
+          timeline.map((t, i) => (
+            <div class="timeline__row">
+              <dt><span class="sheet-no" aria-hidden="true">{pad(i + 1)}</span> {t.when}</dt>
+              <dd>{t.what}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </section>
+
+  <section class="section container aftercare-q" aria-labelledby="contact-h">
+    <div class="aftercare-q__grid aftercare-q__grid--single">
+      <div class="stack">
+        <h2 id="contact-h">When should I contact the shop?</h2>
+        <p class="answer">
+          Contact {s.name} if the tattoo gets redder, hotter or more swollen after the third day, if you see pus or
+          yellow crust, if you have a fever, or if a rash spreads beyond the tattoo. Call {s.telephoneDisplay} or
+          email {s.email}. If it's getting worse quickly, see a doctor; an infection needs medical care, not a tattoo
+          artist.
+        </p>
+        <p class="muted">
+          Questions about how the tattoo looks while it heals, like a light spot after peeling or a patch that
+          looks faded, can wait until it's fully healed. Touch-ups are a conversation for after the first month;
+          ask when you book what Chris's touch-up policy is.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="aftercare__cta">
+    <Cta
+      sheetNo="No. 07"
+      heading="The next one starts here."
+      body="Healed tattoos are the best reference for the next piece. Send the idea and the placement through the booking form; Chris replies by email, and a deposit holds your date once the details are set."
+    />
+  </div>
+</Base>
+
+<style>
+  .aftercare__head {
+    display: grid;
+    gap: var(--space-m);
+    align-items: end;
+    margin-bottom: var(--space-xl);
+  }
+
+  .aftercare__intro {
+    display: grid;
+    gap: var(--space-m);
+    max-width: 60rem;
+  }
+
+  .aftercare__intro h1 {
+    max-width: 16ch;
+  }
+
+  .aftercare__note {
+    max-width: 36ch;
+    padding: var(--space-s) var(--space-m);
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--ink-2);
+    border-left: 3px solid var(--accent);
+    background: var(--paper-2);
+  }
+
+  @media (min-width: 900px) {
+    .aftercare__head {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      gap: var(--space-xl);
+    }
+
+    .aftercare__note {
+      justify-self: end;
+    }
+  }
+
+  .aftercare__grid {
+    display: grid;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  @media (min-width: 960px) {
+    .aftercare__grid {
+      grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr);
+    }
+
+    .aftercare__aside {
+      position: sticky;
+      top: calc(var(--header-h) + var(--space-m));
+    }
+  }
+
+  /* Numbered steps */
+  .steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--ink);
+    background: var(--paper-3);
+    --mark-inset: -9px;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem var(--space-m);
+    padding: var(--space-m);
+    border-bottom: 1px solid var(--rule-2);
+  }
+
+  .step:last-child {
+    border-bottom: 0;
+  }
+
+  .step__num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--step-4);
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    color: var(--rule-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  @supports (-webkit-text-stroke: 1px black) {
+    .step__num {
+      color: transparent;
+      -webkit-text-stroke: 1.5px var(--ink);
+    }
+
+    .step:hover .step__num {
+      -webkit-text-stroke-color: var(--accent);
+    }
+  }
+
+  .step__body {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .step__name {
+    font-size: var(--step-2);
+  }
+
+  .step__text {
+    max-width: 58ch;
+    color: var(--ink-2);
+  }
+
+  @media (min-width: 560px) {
+    .step {
+      grid-template-columns: 4.5rem minmax(0, 1fr);
+    }
+  }
+
+  /* Do / don't */
+  .aftercare__aside {
+    display: grid;
+    gap: var(--space-l);
+  }
+
+  .dodont__cols {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  .dodont__h {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-2);
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1.5px solid var(--ink);
+  }
+
+  .dodont__h--dont {
+    color: var(--accent-ink);
+    border-bottom-color: var(--accent);
+  }
+
+  .dodont__list {
+    margin: 0;
+    padding-left: 1.2em;
+    font-size: var(--step--1);
+  }
+
+  .dodont__list li + li {
+    margin-top: 0.35em;
+  }
+
+  .dodont__list li::marker {
+    color: var(--sage-ink);
+    font-weight: 700;
+  }
+
+  .dodont__list--dont li::marker {
+    color: var(--accent-ink);
+  }
+
+  @media (min-width: 480px) and (max-width: 959.98px) {
+    .dodont__cols {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* When to call */
+  .call {
+    border-left: 5px solid var(--accent);
+  }
+
+  .call__lead {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-1);
+    line-height: 1.3;
+    margin-bottom: var(--space-s);
+  }
+
+  .call__nap {
+    display: grid;
+    margin-bottom: var(--space-s);
+  }
+
+  .call__line {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    width: fit-content;
+    text-decoration-color: transparent;
+  }
+
+  .call__line:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .call__tel {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-2);
+  }
+
+  /* Question sections */
+  .aftercare-q__grid {
+    display: grid;
+    gap: var(--space-l);
+    align-items: start;
+    padding-top: var(--space-l);
+    border-top: 1px solid var(--ink);
+  }
+
+  @media (min-width: 900px) {
+    .aftercare-q__grid:not(.aftercare-q__grid--single) {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+      gap: var(--space-xl);
+    }
+  }
+
+  .aftercare-q h2 {
+    max-width: 20ch;
+  }
+
+  .aftercare-q .muted {
+    max-width: 62ch;
+  }
+
+  .timeline {
+    display: grid;
+    border: 1px solid var(--ink);
+    background: var(--paper-3);
+  }
+
+  .timeline__row {
+    display: grid;
+    gap: 0.25rem;
+    padding: var(--space-s) var(--space-m);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .timeline__row:last-child {
+    border-bottom: 0;
+  }
+
+  .timeline__row dt {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-1);
+  }
+
+  .timeline__row dd {
+    color: var(--ink-2);
+    max-width: 52ch;
+  }
+
+  @media (min-width: 560px) {
+    .timeline__row {
+      grid-template-columns: 9rem minmax(0, 1fr);
+      gap: var(--space-m);
+    }
+  }
+
+  @media print {
+    .aftercare__cta,
+    [data-print] {
+      display: none !important;
+    }
+
+    .aftercare__aside {
+      position: static;
+    }
+  }
+</style>
+
+<script>
+  document.querySelector<HTMLButtonElement>('[data-print]')?.addEventListener('click', () => window.print());
+</script>

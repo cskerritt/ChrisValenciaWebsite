@@ -1,100 +1,1156 @@
 ---
-// Placeholder home page routed through the Base layout (plan Task 3, step 6).
-// Task 7 replaces this with the real hero + sections. Until then it doubles as
-// a live sample of the Flash Sheet design vocabulary defined in global.css.
+/**
+ * Home: the front of the flash sheet.
+ *
+ * Sheet No. 01  hero: typographic headline, answer paragraph, two CTAs and a
+ *               framed featured piece that cross-fades through four pieces
+ *               every 5 s (pausable; off under reduced motion; no-JS shows
+ *               the first piece only).
+ * No. 02        eight featured pieces on a FlashGrid
+ * No. 03        Process (Consult / Design / Session / Heal)
+ * No. 04        About teaser + click-to-load video
+ * No. 05        Styles trio + cover-ups note
+ * No. 06        Serving: drive-time route to all eight location pages
+ * No. 07        Five home FAQs
+ * No. 08        Appointment card CTA
+ *
+ * JSON-LD: Person, TattooParlor, FAQPage (the five home questions).
+ * Every fact comes from shop.json, portfolio.json or the content collections.
+ */
+import { getCollection } from 'astro:content';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
 import Base from '../layouts/Base.astro';
+import FlashGrid from '../components/FlashGrid.astro';
+import Process from '../components/Process.astro';
+import VideoEmbed from '../components/VideoEmbed.astro';
+import Cta from '../components/Cta.astro';
+import FaqList from '../components/FaqList.astro';
 import portfolio from '../data/portfolio.json';
 import shop from '../data/shop.json';
-import { person, tattooParlor } from '../lib/schema';
+import { person, tattooParlor, faqPage, type PortfolioEntry } from '../lib/schema';
 
-const title = 'Chris Valencia Tattoo | Cranston, RI';
+const { shop: s, artist } = shop;
+const items = portfolio as PortfolioEntry[];
+const featured = items.filter((p) => p.featured);
+
+const title = 'Chris Valencia | Tattoo Artist in Cranston, RI';
 const description =
   'Illustrative, neo-traditional and new-school tattoos by Chris Valencia, resident artist at Powerline Tattoo in Cranston, Rhode Island. Request a booking online.';
-const hero = portfolio.find((p) => p.featured) ?? portfolio[0];
-const { shop: s } = shop;
+
+/* Hero: four featured pieces chosen for range (surreal color, neo-traditional,
+   new-school, black and grey). Topped up from the featured set if any are
+   missing from the manifest. */
+const HERO_IDS = ['chris-21', 'chris-12', 'chris-15', 'chris-23'];
+const heroEntries = HERO_IDS.map((id) => items.find((p) => p.id === id)).filter(
+  (p): p is PortfolioEntry => Boolean(p),
+);
+for (const f of featured) {
+  if (heroEntries.length >= 4) break;
+  if (!heroEntries.includes(f)) heroEntries.push(f);
+}
+
+const sources = import.meta.glob<ImageMetadata>('/public/images/portfolio/*.jpg', {
+  eager: true,
+  import: 'default',
+});
+const numberOf = (p: PortfolioEntry) => (p.id.match(/(\d+)\s*$/)?.[1] ?? '').padStart(2, '0');
+
+const HERO_WIDTHS = [420, 560, 720, 960];
+const HERO_SIZES = '(min-width: 1240px) 480px, (min-width: 880px) 42vw, 92vw';
+const heroSlides = await Promise.all(
+  heroEntries.map(async (entry) => {
+    const meta = sources[`/public${entry.file}`];
+    const set = meta ? await getImage({ src: meta, widths: HERO_WIDTHS, format: 'webp', quality: 80 }) : null;
+    return {
+      entry,
+      no: numberOf(entry),
+      srcset: set?.srcSet.attribute,
+      caption: `${entry.title} · ${entry.placement}`,
+    };
+  }),
+);
+const lead = heroSlides[0];
+
+/* Style cards: one representative piece per style page. */
+const styles = (await getCollection('styles')).sort((a, b) => a.data.order - b.data.order);
+const CARD_IMAGE: Record<string, string> = {
+  illustrative: 'chris-08',
+  'neo-traditional': 'chris-26',
+  'new-school': 'chris-07',
+};
+const CARD_WIDTHS = [360, 480, 640, 800];
+const CARD_SIZES = '(min-width: 1240px) 370px, (min-width: 700px) 30vw, 92vw';
+const styleCards = await Promise.all(
+  styles.map(async (st) => {
+    const key = st.data.portfolioStyle;
+    const pick = items.find((p) => p.id === CARD_IMAGE[key]) ?? items.find((p) => p.style.includes(key));
+    const meta = pick ? sources[`/public${pick.file}`] : undefined;
+    const set = meta ? await getImage({ src: meta, widths: CARD_WIDTHS, format: 'webp', quality: 78 }) : null;
+    const label = st.data.slug === 'cover-ups' ? 'Cover-ups' : st.data.title;
+    return { st, pick, label, srcset: set?.srcSet.attribute, path: `/styles/${st.data.slug}/` };
+  }),
+);
+
+/* Serving: every location page, ordered by drive time; the statewide page
+   closes the line. Minutes come from the collection (approximate, "about"). */
+const locations = (await getCollection('locations')).sort((a, b) => a.data.order - b.data.order);
+const driveText = (m: number | undefined) =>
+  m === undefined ? 'Statewide, under an hour' : m === 0 ? 'The shop is here' : `About ${m} minutes`;
+
+/* Home questions. */
+const faqAll = await getCollection('faq');
+const homeFaq = faqAll.filter((e) => e.data.home).sort((a, b) => a.data.order - b.data.order);
+const faqItems = homeFaq.map((e) => ({ q: e.data.question, a: e.data.answer }));
+
+const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0, 3)}`;
+const coords = `${s.latitude.toFixed(4)}° N, ${Math.abs(s.longitude).toFixed(4)}° W`;
+const pad = (n: number) => String(n).padStart(2, '0');
 ---
 
-<Base title={title} description={description} canonicalPath="/" jsonLd={[person(), tattooParlor()]} bodyClass="page-home">
-  <section class="section container">
-    <div class="hero">
-      <div class="hero__copy stack">
-        <p class="eyebrow"><span class="sheet-no">No. 01</span> {s.addressLocality}, Rhode Island</p>
-        <h1>Illustrative &amp; neo-traditional tattoos with a surreal, animated edge</h1>
-        <p class="answer">
-          Chris Valencia is the resident artist at {s.name} in {s.addressLocality}, Rhode Island. He works in
-          illustrative, neo-traditional and new-school styles, drawing fun, surreal images with an animated,
-          whimsical feel. The shop is by appointment only; send your idea through the booking form to get started.
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/"
+  ogImage={lead.entry.file}
+  ogImageAlt={lead.entry.alt}
+  jsonLd={[person(), tattooParlor(), faqPage(faqItems, { path: '/' })]}
+  bodyClass="page-home"
+>
+  <!-- Sheet No. 01: hero -->
+  <!-- No <link rel=preload> for the lead piece on purpose: the preload scanner
+       finds the fetchpriority="high" <img> early enough, and on phones the sheet
+       sits below the copy, so a head preload would only crowd the first paint. -->
+  <section class="hero halftone reg-marks" aria-labelledby="hero-h">
+    <div class="hero__inner container">
+      <div class="hero__copy">
+        <p class="eyebrow"><span class="sheet-no">Sheet No. 01</span> {s.addressLocality}, Rhode Island</p>
+        <h1 id="hero-h" class="hero__h">
+          Illustrative &amp; neo-traditional tattoos with a <em class="hero__em">surreal, animated</em> edge
+        </h1>
+        <p class="answer hero__answer">
+          Chris Valencia is a tattoo artist at {s.name} in {s.addressLocality}, Rhode Island, working in
+          illustrative, neo-traditional and new-school styles. He draws every piece custom, with a taste for fun,
+          surreal images that feel animated and a little whimsical. The shop is by appointment only; send your idea
+          through the booking form to start.
         </p>
-        <div class="cluster">
+        <div class="cluster hero__cta">
           <a class="btn btn--primary" href="/book/">Request a booking</a>
           <a class="btn" href="/portfolio/">See the portfolio</a>
         </div>
+        <dl class="hero__facts">
+          <div class="hero__fact">
+            <dt>Resident artist at</dt>
+            <dd><a href={s.url} rel="noopener">{s.name}</a></dd>
+          </div>
+          <div class="hero__fact">
+            <dt>Sessions</dt>
+            <dd>{s.hoursNote}, {dayRange}</dd>
+          </div>
+          <div class="hero__fact">
+            <dt>Instagram</dt>
+            <dd><a href={artist.instagram} rel="me noopener">{artist.instagramHandle}</a></dd>
+          </div>
+        </dl>
       </div>
-      <figure class="frame reg-marks hero__art">
-        <img src={hero.file} width={hero.width} height={hero.height} alt={hero.alt} fetchpriority="high" />
-        <figcaption>
-          <span class="sheet-no">No. {hero.id.replace('chris-', '')}</span>
-          <span>{hero.title} · {hero.placement}</span>
-        </figcaption>
-      </figure>
+
+      <div class="hero__art">
+        <div
+          class="hero__sheet reg-marks"
+          data-hero
+          role="region"
+          aria-roledescription="carousel"
+          aria-label="Featured tattoos"
+        >
+          <div class="hero__legend">
+            <span class="hero__legend-text">
+              <span class="sheet-no">No. 01</span>
+              <span class="hero__legend-title">Featured piece</span>
+            </span>
+            <button
+              type="button"
+              class="hero__pause js-only"
+              data-hero-pause
+              aria-pressed="false"
+              aria-label="Pause slideshow"
+            >
+              <svg class="hero__ico-pause" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+                <path d="M6 4v12M14 4v12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
+              </svg>
+              <svg class="hero__ico-play" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+                <path d="M6 4v12l10-6z" fill="currentColor"></path>
+              </svg>
+            </button>
+          </div>
+
+          <figure class="hero__figure">
+          <div class="hero__stage" data-hero-stage>
+            {
+              heroSlides.map((sl, i) => (
+                <div
+                  class:list={['hero__slide', { 'is-active': i === 0 }]}
+                  data-hero-slide
+                  data-caption={sl.caption}
+                  data-no={sl.no}
+                  role="group"
+                  aria-roledescription="slide"
+                  aria-label={`Piece ${i + 1} of ${heroSlides.length}`}
+                  aria-hidden={i === 0 ? 'false' : 'true'}
+                  hidden={i !== 0}
+                >
+                  <picture>
+                    {sl.srcset && <source type="image/webp" srcset={sl.srcset} sizes={HERO_SIZES} />}
+                    <img
+                      src={sl.entry.file}
+                      width={sl.entry.width}
+                      height={sl.entry.height}
+                      alt={sl.entry.alt}
+                      loading={i === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      fetchpriority={i === 0 ? 'high' : undefined}
+                    />
+                  </picture>
+                </div>
+              ))
+            }
+          </div>
+
+          <figcaption class="hero__cap">
+            <span class="hero__cap-text">
+              <span class="sheet-no" data-hero-no>No. {lead.no}</span>
+              <span data-hero-cap>{lead.caption}</span>
+            </span>
+            <span class="hero__tabs js-only" role="group" aria-label="Choose a featured piece">
+              {
+                heroSlides.map((sl, i) => (
+                  <button
+                    type="button"
+                    class="hero__tab"
+                    data-hero-tab
+                    aria-pressed={i === 0 ? 'true' : 'false'}
+                    aria-label={`Show piece No. ${sl.no}: ${sl.entry.title}`}
+                  >
+                    {sl.no}
+                  </button>
+                ))
+              }
+            </span>
+          </figcaption>
+          </figure>
+
+          <span class="stamp hero__stamp" aria-hidden="true">{s.hoursNote}</span>
+        </div>
+        <p class="hero__coords" aria-hidden="true">{s.streetAddress} · {coords}</p>
+      </div>
     </div>
   </section>
 
-  <section class="section--tight container">
-    <div class="sheet reveal">
-      <span class="sheet-no sheet__no">No. 02</span>
-      <div class="grid grid--2">
-        <div class="prose">
-          <h2>How booking works</h2>
-          <p>
-            Every piece starts with your idea. Send a short description, placement and any reference images
-            through the booking form. Chris replies by email, a consultation settles the design, and a deposit
-            holds your appointment. The deposit amount is confirmed when you book.
-          </p>
-          <hr class="rule-hand rule-hand--accent rule-hand--tight" />
-          <p class="pull-quote">Fun, surreal images with a very animated, whimsical feel.</p>
-        </div>
-        <div class="stack">
-          <p class="eyebrow">Styles</p>
-          <div class="cluster">
-            <a class="chip" href="/styles/illustrative/">Illustrative</a>
-            <a class="chip" href="/styles/neo-traditional/">Neo-traditional</a>
-            <a class="chip" href="/styles/new-school/">New-school</a>
-            <a class="chip" href="/styles/cover-ups/">Cover-ups</a>
-          </div>
-          <p class="muted">
-            <span class="stamp">{s.hoursNote}</span>
-          </p>
-          <p>
-            {s.name}, {s.streetAddress}, {s.addressLocality}, {s.addressRegion} {s.postalCode} ·
-            <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a>
-          </p>
+  <!-- No. 02: selected work -->
+  <section class="section container" aria-labelledby="work-h">
+    <header class="sec-head sec-head--row reveal">
+      <div class="stack">
+        <p class="eyebrow"><span class="sheet-no">No. 02</span> Selected work</p>
+        <h2 id="work-h">A few pieces to start with</h2>
+      </div>
+      <p class="sec-head__aside">
+        {featured.length} of {items.length} pieces, picked for range: black and grey next to candy color, a teacup
+        that pours out a ship. Tap any piece to see it larger.
+        <a class="link-more" href="/portfolio/">See all {items.length}</a>
+      </p>
+    </header>
+    <FlashGrid items={featured} limit={8} id="home-grid" sheetNo="No. 02" sheetTitle="Selected work" label="Selected tattoos" />
+  </section>
+
+  <!-- No. 03: process -->
+  <Process sheetNo="No. 03" />
+
+  <!-- No. 04: about + video -->
+  <section class="section about-teaser" aria-labelledby="about-h">
+    <div class="container about-teaser__grid">
+      <div class="about-teaser__media reveal">
+        <VideoEmbed id="home-video" sheetNo="No. 04" posterPosition="center 28%" />
+      </div>
+      <div class="about-teaser__copy reveal" style="--reveal-delay:.1s">
+        <p class="eyebrow"><span class="sheet-no">No. 04</span> About Chris</p>
+        <h2 id="about-h">From West Texas to Reservoir Avenue</h2>
+        <p class="answer">
+          Chris Valencia grew up in a small West Texas town and tattooed there for about eight years before moving
+          to the Atlanta, Georgia area about ten years ago. Rhode Island is home now: he works full time at
+          {s.name} in {s.addressLocality}, drawing every piece custom, in all styles, with a preference for
+          illustrative, neo-traditional and new-school.
+        </p>
+        <blockquote class="pull-quote">
+          Fun, surreal images with a very animated, whimsical feel.
+          <cite>From his Powerline Tattoo bio</cite>
+        </blockquote>
+        <div class="cluster">
+          <a class="btn" href="/about/">More about Chris</a>
+          <a class="link-more" href={artist.instagram} rel="me noopener">{artist.instagramHandle} on Instagram</a>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- No. 05: styles -->
+  <section class="section container" aria-labelledby="styles-h">
+    <header class="sec-head sec-head--row reveal">
+      <div class="stack">
+        <p class="eyebrow"><span class="sheet-no">No. 05</span> Styles</p>
+        <h2 id="styles-h">Three styles, one sketchbook</h2>
+      </div>
+      <p class="sec-head__aside">
+        He works all styles and prefers these three; most pieces borrow from more than one. Cover-ups are their own
+        conversation.
+      </p>
+    </header>
+    <ul class="style-cards" role="list">
+      {
+        styleCards.map(({ st, pick, label, srcset, path }, i) => (
+          <li class="reveal" style={`--reveal-delay:${(i * 0.08).toFixed(2)}s`}>
+            {pick && st.data.slug !== 'cover-ups' ? (
+              <a class="style-card" href={path}>
+                <span class="style-card__media">
+                  <picture>
+                    {srcset && <source type="image/webp" srcset={srcset} sizes={CARD_SIZES} />}
+                    <img
+                      src={pick.file}
+                      width={pick.width}
+                      height={pick.height}
+                      alt={pick.alt}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </picture>
+                </span>
+                <span class="style-card__cap">
+                  <span class="sheet-no">{pad(i + 1)}</span>
+                  <span class="style-card__title">{label}</span>
+                  <span class="style-card__tag">{st.data.tagline}</span>
+                </span>
+              </a>
+            ) : (
+              <a class="style-card style-card--note" href={path}>
+                <span class="sheet-no">{pad(i + 1)}</span>
+                <span class="style-card__title">{label}</span>
+                <span class="style-card__tag">{st.data.tagline}</span>
+                <span class="style-card__more">How cover-ups work</span>
+              </a>
+            )}
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <!-- No. 06: serving -->
+  <section class="section serving halftone halftone--up" aria-labelledby="serving-h">
+    <div class="container">
+      <header class="sec-head sec-head--row reveal">
+        <div class="stack">
+          <p class="eyebrow"><span class="sheet-no">No. 06</span> Serving</p>
+          <h2 id="serving-h">Drive times to the chair</h2>
+        </div>
+        <p class="sec-head__aside">
+          Approximate, to {s.streetAddress} in {s.addressLocality}. Each stop has its own page with the route,
+          parking notes and local landmarks.
+        </p>
+      </header>
+      <ol class="route reveal" role="list">
+        {
+          locations.map((l) => (
+            <li
+              class:list={[
+                'route__stop',
+                {
+                  'route__stop--here': l.data.driveMinutes === 0,
+                  'route__stop--wide': l.data.driveMinutes === undefined,
+                },
+              ]}
+            >
+              <a class="route__link" href={`/tattoo-artist/${l.data.slug}/`}>
+                <span class="route__city">{l.data.city}</span>
+                <span class="route__time">{driveText(l.data.driveMinutes)}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <!-- No. 07: questions -->
+  <section class="section container" aria-labelledby="faq-h">
+    <header class="sec-head sec-head--row reveal">
+      <div class="stack">
+        <p class="eyebrow"><span class="sheet-no">No. 07</span> Questions</p>
+        <h2 id="faq-h">Before you book</h2>
+      </div>
+      <p class="sec-head__aside">
+        The five questions that come up most, answered first.
+        <a class="link-more" href="/faq/">All {faqAll.length} questions</a>
+      </p>
+    </header>
+    <FaqList entries={homeFaq} headingLevel={3} showBody={false} speakable={false} id="home-faq" />
+  </section>
+
+  <!-- No. 08: appointment card -->
+  <Cta sheetNo="No. 08" />
 </Base>
 
 <style>
+  /* ---------- Hero ---------- */
   .hero {
+    overflow: hidden;
+    --halftone-opacity: 0.1;
+    --mark-inset: 14px;
+  }
+
+  .hero__inner {
     display: grid;
-    gap: var(--space-l);
+    gap: var(--space-xl);
     align-items: center;
+    padding-block: var(--space-xl) var(--space-2xl);
+  }
+
+  .hero__copy {
+    display: grid;
+    gap: var(--space-m);
+    align-content: center;
+  }
+
+  .hero__h {
+    font-size: clamp(2.5rem, 1.2rem + 4.4vw, 4.9rem);
+    line-height: 0.96;
+    letter-spacing: -0.035em;
+    max-width: 14ch;
+  }
+
+  .hero__em {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--accent-ink);
+  }
+
+  .hero__answer {
+    max-width: 54ch;
+  }
+
+  .hero__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 2rem;
+    margin-top: var(--space-xs);
+    padding-top: var(--space-s);
+    border-top: 1px solid var(--rule-2);
+  }
+
+  .hero__fact dt {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .hero__fact dd {
+    margin-top: 0.1rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-0);
+  }
+
+  .hero__fact a {
+    display: inline-block;
+    padding-block: 0.25em;
+    text-decoration-color: transparent;
+  }
+
+  .hero__fact a:hover {
+    text-decoration-color: currentColor;
   }
 
   .hero__art {
-    max-width: 30rem;
+    position: relative;
     justify-self: center;
-    width: 100%;
+    width: min(100%, 30rem);
   }
 
-  @media (min-width: 800px) {
-    .hero {
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  .hero__figure {
+    margin: 0;
+  }
+
+  .hero__sheet {
+    position: relative;
+    margin: 0;
+    padding: clamp(10px, 1.6vw, 16px);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    box-shadow: 10px 10px 0 var(--accent);
+    --mark-inset: -11px;
+  }
+
+  .hero__legend {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 2rem;
+    padding-bottom: 0.5rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .hero__legend-text {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.6em;
+  }
+
+  .hero__legend-title {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .hero__pause {
+    display: inline-grid;
+    place-items: center;
+    width: var(--tap);
+    height: var(--tap);
+    margin: -0.4rem -0.4rem -0.4rem 0;
+    color: var(--ink);
+    border: 1.5px solid transparent;
+    border-radius: 50%;
+    transition:
+      border-color 0.15s,
+      background-color 0.15s;
+  }
+
+  .hero__pause:hover {
+    border-color: var(--ink);
+    background: var(--paper);
+  }
+
+  .hero__ico-play {
+    display: none;
+  }
+
+  .hero__pause[aria-pressed='true'] .hero__ico-pause {
+    display: none;
+  }
+
+  .hero__pause[aria-pressed='true'] .hero__ico-play {
+    display: block;
+  }
+
+  .hero__stage {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    background: var(--paper-2);
+    border: 1px solid var(--ink);
+  }
+
+  .hero__slide {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 1.1s ease;
+  }
+
+  .hero__slide.was-active {
+    z-index: 1;
+    opacity: 1;
+  }
+
+  .hero__slide.is-active {
+    z-index: 2;
+    opacity: 1;
+  }
+
+  .hero__slide picture,
+  .hero__slide img {
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero__slide img {
+    object-fit: cover;
+    object-position: center;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hero__slide.is-active img {
+      animation: hero-drift 6s ease-out forwards;
+    }
+  }
+
+  @keyframes hero-drift {
+    from {
+      transform: scale(1.04);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  .hero__cap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding-top: 0.6rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .hero__cap-text {
+    display: inline-flex;
+    flex: 1 1 12rem;
+    align-items: baseline;
+    gap: 0.6em;
+    min-width: 0;
+  }
+
+  .hero__tabs {
+    display: inline-flex;
+    gap: 0.3rem;
+  }
+
+  .hero__tab {
+    display: inline-grid;
+    place-items: center;
+    width: var(--tap);
+    height: var(--tap);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: var(--step--1);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    border: 1.5px solid var(--ink);
+    border-radius: 50%;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+  }
+
+  .hero__tab:hover {
+    background: var(--accent-soft);
+  }
+
+  .hero__tab[aria-pressed='true'] {
+    color: var(--paper);
+    background: var(--ink);
+  }
+
+  .hero__stamp {
+    position: absolute;
+    top: -0.9rem;
+    right: -0.8rem;
+    z-index: 3;
+    background: var(--paper-3);
+    transform: rotate(6deg);
+  }
+
+  .hero__coords {
+    display: none;
+    position: absolute;
+    top: 50%;
+    right: -2.6rem;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    color: var(--ink-2);
+  }
+
+  @media (min-width: 880px) {
+    .hero__inner {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      min-height: calc(100vh - var(--header-h) - 10px);
+      min-height: calc(100svh - var(--header-h) - 10px);
+      padding-block: var(--space-xl);
     }
 
     .hero__art {
       justify-self: end;
+      width: min(100%, 30rem, calc((100vh - var(--header-h) - 8rem) * 0.66));
+      min-width: 18rem;
+    }
+  }
+
+  @media (min-width: 1240px) {
+    .hero__coords {
+      display: block;
+    }
+  }
+
+  @media (max-width: 479.98px) {
+    .hero__sheet {
+      box-shadow: 6px 6px 0 var(--accent);
+    }
+
+    .hero__stamp {
+      right: -0.3rem;
+      font-size: 0.7rem;
+    }
+  }
+
+  /* ---------- Home flash sheet packing ----------
+     Eight pieces with two 2x2 heroes make 14 cells. At four columns the
+     sheet note takes the last two cells instead of a full row, and the
+     three-column stage is skipped (two columns until 900px), so the sheet is
+     full at every width. */
+  :global(#home-grid .flash__grid) {
+    --flash-cols: 2;
+  }
+
+  @container (min-width: 900px) {
+    :global(#home-grid .flash__grid) {
+      --flash-cols: 4;
+    }
+
+    :global(#home-grid .tile-cell--note) {
+      grid-column: span 2;
+    }
+
+    :global(#home-grid .tile--note) {
+      height: 100%;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    :global(#home-grid .tile-note__text) {
+      flex: 0 0 auto;
+    }
+
+    :global(#home-grid .tile-note__cta) {
+      margin-left: 0;
+    }
+  }
+
+  /* ---------- Section headers ---------- */
+  .sec-head {
+    display: grid;
+    gap: var(--space-s);
+    max-width: 60rem;
+    margin-bottom: var(--space-l);
+  }
+
+  .sec-head--row {
+    max-width: none;
+    align-items: end;
+  }
+
+  .sec-head__aside {
+    max-width: 44ch;
+    color: var(--ink-2);
+    text-wrap: pretty;
+  }
+
+  .sec-head__aside .link-more {
+    display: block;
+    width: fit-content;
+    margin-top: 0.35rem;
+    color: var(--ink);
+  }
+
+  @media (min-width: 820px) {
+    .sec-head--row {
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: var(--space-l);
+    }
+
+    .sec-head__aside {
+      justify-self: end;
+    }
+  }
+
+  /* ---------- About teaser ---------- */
+  .about-teaser {
+    background: var(--paper-2);
+  }
+
+  .about-teaser__grid {
+    display: grid;
+    gap: var(--space-xl);
+    align-items: center;
+  }
+
+  .about-teaser__copy {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  .about-teaser__copy .pull-quote {
+    font-size: var(--step-1);
+  }
+
+  @media (min-width: 900px) {
+    .about-teaser__grid {
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    }
+  }
+
+  /* ---------- Style cards ---------- */
+  .style-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--space-m);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .style-cards > li {
+    min-width: 0;
+  }
+
+  .style-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    text-decoration: none;
+    transition:
+      transform 0.2s var(--ease-out),
+      box-shadow 0.2s var(--ease-out);
+  }
+
+  .style-card:hover {
+    color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+
+  .style-card__media {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .style-card__media picture,
+  .style-card__media img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .style-card__media img {
+    object-fit: cover;
+    transition: transform 0.6s var(--ease-out);
+  }
+
+  .style-card:hover .style-card__media img {
+    transform: scale(1.035);
+  }
+
+  .style-card__cap {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.15rem 0.7rem;
+    align-items: baseline;
+    padding: 0.9rem 1rem 1.1rem;
+  }
+
+  .style-card__cap .sheet-no {
+    grid-row: 1 / span 2;
+    align-self: start;
+    padding-top: 0.35em;
+  }
+
+  .style-card__title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-2);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .style-card__tag {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--ink-2);
+  }
+
+  .style-card--note {
+    justify-content: center;
+    gap: 0.5rem;
+    padding: var(--space-m);
+    background: var(--paper-2);
+    border-left: 5px solid var(--accent);
+  }
+
+  .style-card--note .style-card__title {
+    font-size: var(--step-3);
+  }
+
+  .style-card__more {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    margin-top: 0.5rem;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.18em;
+  }
+
+  .style-card__more::after {
+    content: '\2192' / '';
+    transition: transform 0.15s var(--ease-out);
+  }
+
+  .style-card:hover .style-card__more::after {
+    transform: translateX(3px);
+  }
+
+  /* ---------- Serving route ---------- */
+  .serving {
+    --halftone-opacity: 0.08;
+  }
+
+  .route {
+    position: relative;
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The line: vertical on small screens, horizontal from 900px. */
+  .route::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    bottom: 14px;
+    left: 7px;
+    width: 2px;
+    background: var(--ink);
+  }
+
+  .route__stop {
+    position: relative;
+  }
+
+  .route__link {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-height: var(--tap);
+    padding: 0.4rem 0 0.4rem 1.9rem;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .route__link::before {
+    content: '';
+    position: absolute;
+    top: 0.75rem;
+    left: 0;
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    border: 2.5px solid var(--ink);
+    border-radius: 50%;
+    background: var(--paper);
+    transition:
+      background-color 0.15s,
+      transform 0.15s var(--ease-out);
+  }
+
+  .route__link:hover::before {
+    background: var(--accent);
+    transform: scale(1.15);
+  }
+
+  .route__stop--here .route__link::before {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--paper), 0 0 0 4.5px var(--accent);
+  }
+
+  .route__stop--wide .route__link::before {
+    border-style: dashed;
+  }
+
+  .route__city {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-1);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.15em;
+    transition: text-decoration-color 0.15s;
+  }
+
+  .route__link:hover .route__city {
+    text-decoration-color: var(--accent);
+  }
+
+  .route__time {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  @media (min-width: 900px) {
+    .route {
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 0;
+    }
+
+    .route::before {
+      top: 7px;
+      bottom: auto;
+      left: 8px;
+      right: 8px;
+      width: auto;
+      height: 2px;
+    }
+
+    .route__link {
+      padding: 1.6rem 0.75rem 0.4rem 0;
+    }
+
+    .route__link::before {
+      top: 0;
     }
   }
 </style>
+
+<script>
+  // Hero slideshow: cross-fades through the featured pieces every 5 s.
+  // Off under prefers-reduced-motion (the tabs still work), pausable with a
+  // real button, paused while the tab is hidden or focus is inside the sheet.
+  const hero = document.querySelector<HTMLElement>('[data-hero]');
+
+  if (hero) {
+    const slides = Array.from(hero.querySelectorAll<HTMLElement>('[data-hero-slide]'));
+    const tabs = Array.from(hero.querySelectorAll<HTMLButtonElement>('[data-hero-tab]'));
+    const pauseBtn = hero.querySelector<HTMLButtonElement>('[data-hero-pause]');
+    const capEl = hero.querySelector<HTMLElement>('[data-hero-cap]');
+    const noEl = hero.querySelector<HTMLElement>('[data-hero-no]');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const INTERVAL = 5000;
+
+    let index = 0;
+    let timer: number | undefined;
+    let auto = !reduce.matches;
+
+    const paint = () => {
+      if (!pauseBtn) return;
+      pauseBtn.setAttribute('aria-pressed', String(!auto));
+      pauseBtn.setAttribute('aria-label', auto ? 'Pause slideshow' : 'Play slideshow');
+    };
+
+    const show = (n: number) => {
+      if (!slides.length) return;
+      const next = (n + slides.length) % slides.length;
+      if (next === index && slides[next].classList.contains('is-active')) return;
+      slides.forEach((slide, k) => {
+        slide.classList.remove('was-active');
+        if (k === index) slide.classList.add('was-active');
+        slide.classList.toggle('is-active', k === next);
+        slide.setAttribute('aria-hidden', k === next ? 'false' : 'true');
+      });
+      index = next;
+      tabs.forEach((tab, k) => tab.setAttribute('aria-pressed', String(k === index)));
+      const current = slides[index];
+      if (capEl) capEl.textContent = current.dataset.caption || '';
+      if (noEl) noEl.textContent = current.dataset.no ? `No. ${current.dataset.no}` : '';
+    };
+
+    const stop = () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+        timer = undefined;
+      }
+    };
+
+    const start = () => {
+      stop();
+      if (!auto || document.hidden || slides.length < 2) return;
+      timer = window.setInterval(() => show(index + 1), INTERVAL);
+    };
+
+    // The other slides stay hidden until the lead image has painted, so the
+    // first piece wins the bandwidth and the layout never shifts.
+    const arm = () => {
+      slides.forEach((slide) => {
+        slide.hidden = false;
+      });
+      start();
+    };
+    const leadImg = slides[0]?.querySelector('img');
+    if (leadImg && !leadImg.complete) {
+      leadImg.addEventListener('load', arm, { once: true });
+      leadImg.addEventListener('error', arm, { once: true });
+    } else {
+      arm();
+    }
+
+    tabs.forEach((tab, k) => {
+      tab.addEventListener('click', (e) => {
+        show(k);
+        // A pointer click restarts the clock; a keyboard activation leaves
+        // the show paused while focus stays inside the sheet.
+        if (e.detail > 0) start();
+      });
+    });
+
+    pauseBtn?.addEventListener('click', () => {
+      auto = !auto;
+      paint();
+      if (auto) start();
+      else stop();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stop();
+      else start();
+    });
+
+    reduce.addEventListener('change', () => {
+      auto = !reduce.matches;
+      paint();
+      if (auto) start();
+      else stop();
+    });
+
+    hero.addEventListener('focusin', stop);
+    hero.addEventListener('focusout', (e) => {
+      const next = (e as FocusEvent).relatedTarget as Node | null;
+      if (!next || !hero.contains(next)) start();
+    });
+
+    paint();
+  }
+</script>

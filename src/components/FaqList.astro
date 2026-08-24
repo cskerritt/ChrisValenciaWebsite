@@ -1,0 +1,381 @@
+---
+/**
+ * FaqList: question-and-answer entries from the `faq` content collection.
+ *
+ * Each entry renders as a numbered item: the question as a heading (h2 by
+ * default, h3 when nested under a section heading), the 40–60 word answer
+ * paragraph first (marked `speakable` for the FAQPage SpeakableSpecification),
+ * then the markdown body as the detail. The page emits the matching FAQPage
+ * JSON-LD from the same `answer` fields via lib/schema faqPage().
+ *
+ * Grouped mode (/faq/) sorts entries into categories with a sticky index that
+ * tracks the visible section; numbers run continuously across groups.
+ *
+ * Usage:
+ *   <FaqList entries={homeFaq} headingLevel={3} showBody={false} speakable={false} />
+ *   <FaqList entries={all} grouped speakable id="faq" />
+ */
+import { render, type CollectionEntry } from 'astro:content';
+
+type Entry = CollectionEntry<'faq'>;
+type Category = Entry['data']['category'];
+
+export interface Props {
+  entries: Entry[];
+  grouped?: boolean;
+  headingLevel?: 2 | 3;
+  showBody?: boolean;
+  speakable?: boolean;
+  id?: string;
+}
+
+const CATEGORIES: Array<{ key: Category; label: string; blurb: string }> = [
+  { key: 'booking', label: 'Booking', blurb: 'Getting a date on the calendar.' },
+  { key: 'pricing', label: 'Pricing and deposits', blurb: 'What shapes a quote, and what holds an appointment.' },
+  { key: 'process', label: 'The tattoo', blurb: 'Design, preparation and the session itself.' },
+  { key: 'aftercare', label: 'Healing', blurb: 'What happens after you leave the chair.' },
+  { key: 'location', label: 'The shop', blurb: 'Where Powerline Tattoo is and how to get there.' },
+];
+
+const {
+  entries,
+  grouped = false,
+  headingLevel = 2,
+  showBody = true,
+  speakable = true,
+  id = 'faq',
+} = Astro.props;
+
+const sorted = [...entries].sort((a, b) => a.data.order - b.data.order);
+const rendered = await Promise.all(
+  sorted.map(async (entry) => ({
+    entry,
+    Content: showBody && entry.body?.trim() ? (await render(entry)).Content : null,
+  })),
+);
+
+const Heading = `h${headingLevel}` as 'h2' | 'h3';
+const pad = (n: number) => String(n).padStart(2, '0');
+
+const groups = grouped
+  ? CATEGORIES.map((c) => ({
+      ...c,
+      items: rendered.filter((r) => r.entry.data.category === c.key),
+    })).filter((g) => g.items.length > 0)
+  : [{ key: 'all' as const, label: '', blurb: '', items: rendered }];
+
+let counter = 0;
+const numbered = groups.map((g) => ({
+  ...g,
+  anchor: `${id}-${g.key}`,
+  items: g.items.map((r) => ({ ...r, no: pad(++counter) })),
+}));
+---
+
+<div class:list={['faq', { 'faq--grouped': grouped }]} id={id} data-faq>
+  {
+    grouped && (
+      <nav class="faq-nav" aria-label="Question topics">
+        <p class="faq-nav__title">
+          <span class="sheet-no">Index</span>
+          <span class="faq-nav__total">{counter} questions</span>
+        </p>
+        <ol class="faq-nav__list" role="list">
+          {numbered.map((g) => (
+            <li>
+              <a class="faq-nav__link" href={`#${g.anchor}`} data-faq-nav-link={g.anchor}>
+                <span>{g.label}</span>
+                <span class="faq-nav__count">{g.items.length}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    )
+  }
+
+  <div class="faq__groups">
+    {
+      numbered.map((g) =>
+        grouped ? (
+          <section class="faq-group" id={g.anchor} aria-labelledby={`${g.anchor}-label`} data-faq-group={g.anchor}>
+            <header class="faq-group__head">
+              <p class="faq-group__label" id={`${g.anchor}-label`}>
+                {g.label}
+              </p>
+              <p class="faq-group__blurb">{g.blurb}</p>
+            </header>
+            <div class="faq-group__items">
+              {g.items.map(({ entry, Content, no }) => (
+                <article class="faq-item" id={entry.id}>
+                  <span class="faq-item__no sheet-no" aria-hidden="true">
+                    No. {no}
+                  </span>
+                  <div class="faq-item__body">
+                    <Heading class="faq-item__q" id={`${entry.id}-q`}>
+                      {entry.data.question}
+                    </Heading>
+                    <p class:list={['faq-item__a', { speakable }]}>{entry.data.answer}</p>
+                    {Content && (
+                      <div class="faq-item__more prose">
+                        <Content />
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <div class="faq-group__items">
+            {g.items.map(({ entry, Content, no }) => (
+              <article class="faq-item" id={entry.id}>
+                <span class="faq-item__no sheet-no" aria-hidden="true">
+                  No. {no}
+                </span>
+                <div class="faq-item__body">
+                  <Heading class="faq-item__q" id={`${entry.id}-q`}>
+                    {entry.data.question}
+                  </Heading>
+                  <p class:list={['faq-item__a', { speakable }]}>{entry.data.answer}</p>
+                  {Content && (
+                    <div class="faq-item__more prose">
+                      <Content />
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        ),
+      )
+    }
+  </div>
+</div>
+
+<style>
+  .faq {
+    display: grid;
+    gap: var(--space-l);
+  }
+
+  /* ---- Index (grouped) ---- */
+  .faq-nav__title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1em;
+    padding-bottom: 0.6rem;
+    border-bottom: 1.5px solid var(--ink);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .faq-nav__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: var(--space-s) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .faq-nav__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: var(--tap);
+    padding: 0.4em 1em;
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 500;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+  }
+
+  .faq-nav__link:hover {
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  .faq-nav__link[aria-current='true'] {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .faq-nav__count {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    color: var(--accent-ink);
+  }
+
+  .faq-nav__link[aria-current='true'] .faq-nav__count {
+    color: var(--accent);
+  }
+
+  /* ---- Groups ---- */
+  .faq-group + .faq-group {
+    margin-top: var(--space-xl);
+  }
+
+  .faq-group__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 1rem;
+    padding-bottom: 0.6rem;
+    margin-bottom: var(--space-xs);
+    border-bottom: 1.5px solid var(--ink);
+  }
+
+  .faq-group__label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-3);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .faq-group__blurb {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--ink-2);
+  }
+
+  /* ---- Items ---- */
+  .faq-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem var(--space-m);
+    padding-block: var(--space-m);
+    border-bottom: 1px solid var(--rule);
+    scroll-margin-top: calc(var(--header-h) + 1rem);
+  }
+
+  .faq-item:target {
+    box-shadow: inset 4px 0 0 var(--accent);
+    padding-left: var(--space-s);
+  }
+
+  .faq-item__no {
+    font-size: var(--step--1);
+    padding-top: 0.45em;
+  }
+
+  .faq-item__body {
+    display: grid;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  .faq-item__q {
+    font-size: var(--step-2);
+    scroll-margin-top: calc(var(--header-h) + 1rem);
+  }
+
+  .faq-item__a {
+    max-width: 62ch;
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .faq-item__more {
+    max-width: 62ch;
+    color: var(--ink-2);
+    font-size: var(--step--1);
+  }
+
+  @media (min-width: 640px) {
+    .faq-item {
+      grid-template-columns: 4.5rem minmax(0, 1fr);
+    }
+  }
+
+  @media (min-width: 960px) {
+    .faq--grouped {
+      grid-template-columns: 15rem minmax(0, 1fr);
+      gap: var(--space-xl);
+      align-items: start;
+    }
+
+    .faq--grouped .faq-nav {
+      position: sticky;
+      top: calc(var(--header-h) + var(--space-m));
+    }
+
+    .faq--grouped .faq-nav__list {
+      flex-direction: column;
+      gap: 0;
+      margin-top: 0;
+    }
+
+    .faq--grouped .faq-nav__link {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      border: 0;
+      border-bottom: 1px solid var(--rule);
+      border-radius: 0;
+    }
+
+    .faq--grouped .faq-nav__link[aria-current='true'] {
+      background: transparent;
+      color: var(--accent-ink);
+      font-weight: 600;
+      box-shadow: inset 3px 0 0 var(--accent);
+      padding-left: 0.85rem;
+    }
+
+    .faq--grouped .faq-nav__link[aria-current='true'] .faq-nav__count {
+      color: var(--accent-ink);
+    }
+  }
+</style>
+
+<script>
+  // Grouped index: mark the topic whose section is at the reading line.
+  const roots = document.querySelectorAll<HTMLElement>('[data-faq]');
+
+  roots.forEach((root) => {
+    const links = Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-faq-nav-link]'));
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-faq-group]'));
+    if (!links.length || !groups.length) return;
+
+    const setActive = (key: string) => {
+      for (const l of links) {
+        if (l.dataset.faqNavLink === key) l.setAttribute('aria-current', 'true');
+        else l.removeAttribute('aria-current');
+      }
+    };
+
+    const update = () => {
+      const line = window.innerHeight * 0.3;
+      let best = groups[0];
+      for (const g of groups) {
+        if (g.getBoundingClientRect().top <= line) best = g;
+      }
+      setActive(best.dataset.faqGroup || '');
+    };
+
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        update();
+      });
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    update();
+  });
+</script>

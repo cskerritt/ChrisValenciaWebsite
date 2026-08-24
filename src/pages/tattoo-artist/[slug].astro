@@ -1,0 +1,929 @@
+---
+/**
+ * /tattoo-artist/[slug]/ — one "route sheet" per city (plus the statewide
+ * Rhode Island page), built from src/content/locations/*.md.
+ *
+ * Sheet anatomy, top to bottom:
+ *   1. Header: eyebrow "Route No. 0X · Serving", the H1 and the 40–60 word
+ *      answer from frontmatter, CTAs, and the route card on the right: the
+ *      drive time as a big display figure ("about 10 min"; "Local" for
+ *      Cranston; "Statewide" for Rhode Island, where a single number would be
+ *      invented), the driveLabel, a hand-drawn line from the city pin to the
+ *      shop pin, the routeNote, and a Google Maps directions link whose
+ *      origin is the city.
+ *   2. "The shop" strip: a postcard-sized framed piece, the NAP block from
+ *      shop.json, and the page's real local references (frontmatter
+ *      `landmarks`).
+ *   3. Contents rail beside the markdown body (numbered question H2s).
+ *   4. Four featured pieces, a different window of the eight per page
+ *      (rotated by `order`), so no two location pages show the same set.
+ *   5. The four style sheets and the other locations (the location → style
+ *      and location → location halves of the link mesh), then the closing
+ *      booking note with the phone number and directions.
+ *
+ * JSON-LD: Service (areaServed = this city) + TattooParlor; Base adds
+ * WebSite and BreadcrumbList. Drive times are the "about" figures from the
+ * content; nothing else numeric is introduced here.
+ */
+import type { InferGetStaticPropsType } from 'astro';
+import type { ImageMetadata } from 'astro';
+import { getCollection, render } from 'astro:content';
+import { getImage } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import FlashGrid from '../../components/FlashGrid.astro';
+import portfolio from '../../data/portfolio.json';
+import shop from '../../data/shop.json';
+import { service, tattooParlor, type PortfolioEntry } from '../../lib/schema';
+
+export async function getStaticPaths() {
+  const locations = await getCollection('locations');
+  return locations.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+}
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+const { entry } = Astro.props;
+const { data } = entry;
+const { Content, headings } = await render(entry);
+
+const byOrder = <T extends { data: { order: number } }>(a: T, b: T) => a.data.order - b.data.order;
+const locations = (await getCollection('locations')).sort(byOrder);
+const styles = (await getCollection('styles')).sort(byOrder);
+const otherLocations = locations.filter((l) => l.data.slug !== data.slug);
+
+const { shop: s, artist } = shop;
+const path = `/tattoo-artist/${data.slug}/`;
+const pad = (n: number) => String(n).padStart(2, '0');
+const routeNo = pad(data.order);
+
+const isState = data.driveMinutes === undefined; // the statewide page
+const isLocal = data.driveMinutes === 0; // the shop's own city
+const city = data.city;
+const crumbName = isState ? city : `${city}, RI`;
+
+/* ---- Directions: from this city to the shop ---- */
+const destination = `${s.streetAddress}, ${s.addressLocality}, ${s.addressRegion} ${s.postalCode}`;
+const directions =
+  'https://www.google.com/maps/dir/?api=1' +
+  (isState ? '' : `&origin=${encodeURIComponent(`${city}, ${s.addressRegion}`)}`) +
+  `&destination=${encodeURIComponent(destination)}`;
+const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0, 3)}`;
+const telHref = `tel:${s.telephone}`;
+
+/* ---- Pieces: a rotating window of the featured eight ---- */
+const items = portfolio as PortfolioEntry[];
+const featured = items.filter((p) => p.featured);
+const offset = featured.length ? (data.order - 1) % featured.length : 0;
+const rotate = (n: number) => featured[(offset + n) % featured.length];
+const sheetItems = featured.length ? [0, 1, 2, 3].map(rotate) : items.slice(0, 4);
+const postcard: PortfolioEntry | undefined = featured.length ? rotate(4) : items[4];
+
+const sources = import.meta.glob<ImageMetadata>('/public/images/portfolio/*.jpg', {
+  eager: true,
+  import: 'default',
+});
+let postcardSrcset: string | undefined;
+if (postcard) {
+  const meta = sources[`/public${postcard.file}`];
+  if (meta) {
+    const img = await getImage({ src: meta, widths: [320, 480, 640], format: 'webp', quality: 80 });
+    postcardSrcset = img.srcSet.attribute;
+  }
+}
+const POSTCARD_SIZES = '(min-width: 800px) 14rem, 60vw';
+
+/* ---- Contents rail ---- */
+const toc = headings.filter((h) => h.depth === 2);
+
+/* ---- Copy that varies with the page ---- */
+const driveTag = (min: number | undefined): string =>
+  min === undefined ? 'statewide' : min === 0 ? 'local' : `about ${min} min`;
+const refsLabel = isState ? 'Regions covered' : 'Local landmarks';
+const originLabel = isState ? 'Anywhere in RI' : city;
+const serviceName = isState
+  ? 'Custom tattoos in Rhode Island'
+  : isLocal
+    ? `Custom tattoos in ${city}, RI`
+    : `Custom tattoos near ${city}, RI`;
+const ctaHeading = isState ? 'Book from anywhere in Rhode Island' : `Book from ${city}`;
+const directionsLabel = isState ? 'Directions to the shop' : `Directions from ${city}`;
+---
+
+<Base
+  title={data.metaTitle}
+  description={data.description}
+  canonicalPath={path}
+  ogImage={postcard?.file}
+  ogImageAlt={postcard?.alt}
+  breadcrumbs={[{ name: crumbName, path }]}
+  jsonLd={[service(serviceName, data.answer, [city], path), tattooParlor()]}
+  bodyClass="page-location"
+>
+  <article class="loc">
+    <header class="section container loc__head">
+      <div class="loc__intro stack">
+        <p class="eyebrow">
+          <span class="sheet-no">Route No. {routeNo}</span>
+          <span>Serving</span>
+        </p>
+        <h1>{data.h1}</h1>
+        <p class="answer">{data.answer}</p>
+        <div class="cluster">
+          <a class="btn btn--primary" href="/book/">Request a booking</a>
+          <a class="btn" href="/portfolio/">See the portfolio</a>
+        </div>
+      </div>
+
+      <section class="route sheet reg-marks" aria-labelledby="route-label">
+        <span class="sheet-no sheet__no">Route No. {routeNo}</span>
+        <p class="route__time">
+          {
+            isState ? (
+              <span class="route__num route__num--word">Statewide</span>
+            ) : isLocal ? (
+              <span class="route__num route__num--word">Local</span>
+            ) : (
+              <>
+                <span class="route__about">about</span>
+                <span class="route__num">{data.driveMinutes}</span>
+                <span class="route__unit">min</span>
+              </>
+            )
+          }
+        </p>
+        <p class="route__label" id="route-label">{data.driveLabel}</p>
+        <div class="route__path" aria-hidden="true">
+          <span class="route__pin">
+            <span class="route__dot"></span>
+            {originLabel}
+          </span>
+          <span class="route__line"></span>
+          <span class="route__pin route__pin--shop">
+            <span class="route__dot route__dot--shop"></span>
+            {s.streetAddress.replace('Avenue', 'Ave')}
+          </span>
+        </div>
+        <p class="route__note">{data.routeNote}</p>
+        <div class="cluster route__actions">
+          <a class="btn btn--sm" href={directions} rel="noopener">Get directions</a>
+          <span class="route__parking muted small">Street and lot parking; confirm when you book.</span>
+        </div>
+      </section>
+    </header>
+
+    <section class="container" aria-labelledby="shop-h">
+      <div class="sheet shop reveal">
+        <span class="sheet-no sheet__no">The shop</span>
+        <div class="shop__grid">
+          {
+            postcard && (
+              <figure class="frame reg-marks postcard">
+                <picture>
+                  {postcardSrcset && <source type="image/webp" srcset={postcardSrcset} sizes={POSTCARD_SIZES} />}
+                  <img
+                    src={postcard.file}
+                    width={postcard.width}
+                    height={postcard.height}
+                    alt={postcard.alt}
+                    loading="eager"
+                    decoding="async"
+                  />
+                </picture>
+                <figcaption>
+                  <span class="sheet-no">No. {postcard.id.replace(/^\D+/, '')}</span>
+                  <span>{postcard.title}</span>
+                </figcaption>
+              </figure>
+            )
+          }
+
+          <div class="shop__nap stack">
+            <h2 id="shop-h" class="shop__h">
+              {s.name}, {s.addressLocality}
+            </h2>
+            <p class="shop__resident">
+              Chris Valencia is a resident artist here. Every appointment on this site happens at this address.
+            </p>
+            <address class="nap-lines">
+              <a class="nap-lines__line" href={directions} rel="noopener">
+                <span>
+                  {s.streetAddress}, {s.addressLocality}, {s.addressRegion} {s.postalCode}
+                </span>
+              </a>
+              <a class="nap-lines__line" href={telHref}>{s.telephoneDisplay}</a>
+              <a class="nap-lines__line" href={artist.instagram} rel="me noopener">
+                {artist.instagramHandle} on Instagram
+              </a>
+            </address>
+            <p class="shop__hours">
+              <span class="stamp">{s.hoursNote}</span>
+              <span class="shop__days serif">{dayRange}</span>
+            </p>
+          </div>
+
+          <div class="shop__refs">
+            <p class="eyebrow eyebrow--bare shop__refs-h">{refsLabel}</p>
+            <ul class="shop__refs-list" role="list">
+              {data.landmarks.map((l) => <li>{l}</li>)}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="container sheet-body">
+      {
+        toc.length > 0 && (
+          <nav class="toc" aria-label="On this sheet">
+            <p class="toc__label">
+              <span class="sheet-no">Contents</span>
+              <span class="toc__count">
+                {toc.length} {toc.length === 1 ? 'question' : 'questions'}
+              </span>
+            </p>
+            <ol class="toc__list" role="list">
+              {toc.map((h, i) => (
+                <li>
+                  <a class="toc__link" href={`#${h.slug}`}>
+                    <span class="toc__no sheet-no" aria-hidden="true">
+                      {pad(i + 1)}
+                    </span>
+                    <span>{h.text}</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )
+      }
+      <div class="prose prose--numbered">
+        <Content />
+      </div>
+    </div>
+
+    <section class="section container" aria-labelledby="loc-work-h">
+      <div class="work__head">
+        <div class="stack">
+          <p class="eyebrow"><span class="sheet-no">No. {routeNo}</span> Recent work</p>
+          <h2 id="loc-work-h">Four pieces from the chair</h2>
+          <p class="work__note muted">
+            Featured work by Chris in illustrative, neo-traditional and new-school styles. Tap a tile to see it
+            full size; the full portfolio filters by style.
+          </p>
+        </div>
+        <a class="link-more work__all" href="/portfolio/">All {items.length} pieces in the portfolio</a>
+      </div>
+      <FlashGrid
+        items={sheetItems}
+        heroes="none"
+        id="route-sheet"
+        sheetNo={`No. ${routeNo}`}
+        sheetTitle="Recent work"
+        label="Featured tattoos by Chris Valencia"
+      />
+    </section>
+
+    <section class="section--tight container" aria-labelledby="loc-styles-h">
+      <hr class="rule-hand rule-hand--accent rule-hand--tight" />
+      <div class="stack" style="margin-bottom: var(--space-m)">
+        <p class="eyebrow">The style sheets</p>
+        <h2 id="loc-styles-h">What Chris draws</h2>
+      </div>
+      <ul class="style-cards" role="list">
+        {
+          styles.map((st, i) => (
+            <li class="reveal" style={`--reveal-delay:${(i * 0.07).toFixed(2)}s`}>
+              <a class="style-card" href={`/styles/${st.data.slug}/`}>
+                <span class="style-card__no sheet-no" aria-hidden="true">
+                  {pad(st.data.order)}
+                </span>
+                <span class="style-card__name">{st.data.title}</span>
+                <span class="style-card__tag">{st.data.tagline}</span>
+                <span class="style-card__more">Read the sheet</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="section container serving" aria-labelledby="loc-serving-h">
+      <div class="serving__head">
+        <div class="stack">
+          <h2 id="loc-serving-h" class="serving__h">Also serving</h2>
+          <p class="serving__note">
+            Same chair, same address. Each page has its own route notes and a drive time from that town.
+          </p>
+        </div>
+      </div>
+      <ul class="routes reveal" role="list">
+        {
+          otherLocations.map((loc) => (
+            <li>
+              <a class="route-chip" href={`/tattoo-artist/${loc.data.slug}/`}>
+                <span class="route-chip__city">{loc.data.city}</span>
+                <span class="route-chip__time">{driveTag(loc.data.driveMinutes)}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="section--tight container" aria-labelledby="loc-cta-h">
+      <div class="sheet sheet--paper-2 reg-marks reveal cta">
+        <span class="sheet-no sheet__no">Next</span>
+        <div class="cta__grid">
+          <div class="stack">
+            <h2 id="loc-cta-h">{ctaHeading}</h2>
+            <p class="cta__body">
+              Send your idea, placement, rough size and any references through the booking form. Chris replies by
+              email, a consultation settles the design, and a deposit holds your date; the amount is confirmed
+              when you book. {s.name} is {s.hoursNote.toLowerCase()}, {dayRange}.
+            </p>
+            <div class="cluster">
+              <a class="btn btn--primary" href="/book/">Request a booking</a>
+              <a class="btn" href={telHref}>Call {s.telephoneDisplay}</a>
+              <a class="link-more" href={directions} rel="noopener">{directionsLabel}</a>
+            </div>
+          </div>
+          <p class="pull-quote cta__quote">{data.driveLabel}</p>
+        </div>
+      </div>
+    </section>
+  </article>
+</Base>
+
+<style>
+  /* ---- Header ---- */
+  .loc__head {
+    display: grid;
+    gap: var(--space-xl) var(--space-l);
+    align-items: start;
+  }
+
+  .loc__intro {
+    max-width: 40rem;
+  }
+
+  /* ---- Route card ---- */
+  .route {
+    display: grid;
+    gap: var(--space-s);
+    width: 100%;
+    max-width: 30rem;
+    justify-self: center;
+    background: var(--paper-3);
+    border-color: var(--ink);
+    padding-top: var(--space-l);
+    container-type: inline-size;
+  }
+
+  .route .sheet__no {
+    background: var(--paper-3);
+  }
+
+  .route__time {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    line-height: 1;
+  }
+
+  .route__about {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-2);
+    color: var(--ink-2);
+  }
+
+  .route__num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--step-6);
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    color: var(--accent-ink);
+    font-variant-numeric: lining-nums;
+  }
+
+  .route__num--word {
+    font-size: var(--step-5);
+  }
+
+  .route__unit {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-3);
+    color: var(--ink);
+  }
+
+  .route__label {
+    font-weight: 600;
+    text-wrap: pretty;
+  }
+
+  .route__path {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.7rem;
+    padding-block: 0.25rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .route__pin {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+  }
+
+  .route__pin--shop {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .route__dot {
+    flex: 0 0 auto;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid var(--ink);
+    background: var(--paper-3);
+  }
+
+  .route__dot--shop {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+
+  .route__line {
+    flex: 1 1 3rem;
+    min-width: 3rem;
+    height: 0;
+    border-top: 2px dashed var(--accent);
+  }
+
+  @supports ((-webkit-mask-repeat: no-repeat) or (mask-repeat: no-repeat)) {
+    .route__line {
+      height: 8px;
+      border-top: 0;
+      background-color: var(--accent);
+      -webkit-mask-image: var(--rule-hand-svg);
+      -webkit-mask-size: 120px 8px;
+      -webkit-mask-repeat: repeat-x;
+      -webkit-mask-position: left center;
+      mask-image: var(--rule-hand-svg);
+      mask-size: 120px 8px;
+      mask-repeat: repeat-x;
+      mask-position: left center;
+    }
+  }
+
+  /* Narrow cards (phones): the two pins stack and the line runs down between
+     them, like a transit map, instead of wrapping the shop pin to a new row. */
+  @container (max-width: 23rem) {
+    .route__path {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+    }
+
+    .route__line {
+      flex: 0 0 auto;
+      width: 0;
+      min-width: 0;
+      height: 1.1rem;
+      margin-left: 4.5px;
+      border-top: 0;
+      border-left: 2px dashed var(--accent);
+      background: none;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+  }
+
+  .route__note {
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    text-wrap: pretty;
+  }
+
+  .route__actions {
+    padding-top: 0.25rem;
+    gap: var(--space-xs) var(--space-s);
+  }
+
+  .route__parking {
+    font-family: var(--font-serif);
+    font-style: italic;
+  }
+
+  /* ---- The shop strip ---- */
+  .shop {
+    background: var(--paper-2);
+    margin-top: var(--space-s);
+  }
+
+  .shop .sheet__no {
+    background: var(--paper-2);
+  }
+
+  .shop__grid {
+    display: grid;
+    gap: var(--space-l);
+    align-items: start;
+  }
+
+  .postcard {
+    max-width: 14rem;
+    transform: rotate(-1.5deg);
+    --mark-inset: -8px;
+  }
+
+  .postcard figcaption span:last-child {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .shop__h {
+    font-size: var(--step-2);
+  }
+
+  .shop__resident {
+    color: var(--ink-2);
+    max-width: 40ch;
+  }
+
+  .nap-lines {
+    display: grid;
+  }
+
+  .nap-lines__line {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    width: fit-content;
+    line-height: 1.4;
+    text-decoration-color: transparent;
+  }
+
+  .nap-lines__line:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .shop__hours {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-s) var(--space-m);
+  }
+
+  .shop__days {
+    font-size: var(--step-1);
+    font-weight: 600;
+  }
+
+  .shop__refs-h {
+    padding-bottom: 0.55rem;
+    margin-bottom: 0.35rem;
+    border-bottom: 1px solid var(--rule-2);
+  }
+
+  .shop__refs-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--font-serif);
+    font-style: italic;
+    line-height: 1.35;
+  }
+
+  .shop__refs-list li {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .shop__refs-list li::before {
+    content: '\2192' / '';
+    flex: 0 0 auto;
+    color: var(--accent-ink);
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  /* ---- Contents rail + body ---- */
+  .sheet-body {
+    display: grid;
+    gap: var(--space-l);
+    align-items: start;
+    padding-block: var(--space-xl) var(--space-l);
+  }
+
+  .toc {
+    border-top: 1.5px solid var(--ink);
+  }
+
+  .toc__label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0 0.35rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .toc__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .toc__link {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    min-height: var(--tap);
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--rule);
+    font-size: var(--step--1);
+    font-weight: 500;
+    line-height: 1.35;
+    text-decoration-color: transparent;
+    color: var(--ink);
+  }
+
+  .toc__link:hover {
+    color: var(--accent-ink);
+    text-decoration-color: currentColor;
+  }
+
+  .toc__no {
+    flex: 0 0 1.7em;
+    font-size: var(--step--1);
+  }
+
+  /* ---- Recent work ---- */
+  .work__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-s) var(--space-l);
+    margin-bottom: var(--space-m);
+  }
+
+  .work__note {
+    max-width: 60ch;
+  }
+
+  .work__all {
+    padding-block: 0.5rem;
+  }
+
+  /* ---- Style cards ---- */
+  .style-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: var(--space-m);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .style-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    height: 100%;
+    padding: var(--space-m);
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    text-decoration: none;
+    transition:
+      transform 0.15s var(--ease-out),
+      box-shadow 0.15s var(--ease-out);
+  }
+
+  .style-card:hover {
+    color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .style-card__no {
+    font-size: var(--step-0);
+  }
+
+  .style-card__name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-2);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .style-card__tag {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--ink-2);
+    text-wrap: pretty;
+  }
+
+  .style-card__more {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    margin-top: auto;
+    padding-top: var(--space-s);
+    font-weight: 600;
+    font-size: var(--step--1);
+    color: var(--accent-ink);
+  }
+
+  .style-card__more::after {
+    content: '\2192' / '';
+    display: inline-block;
+    transition: transform 0.15s var(--ease-out);
+  }
+
+  .style-card:hover .style-card__more::after {
+    transform: translateX(3px);
+  }
+
+  /* ---- Also serving ---- */
+  .serving__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-s) var(--space-l);
+    margin-bottom: var(--space-m);
+  }
+
+  .serving__h {
+    font-size: var(--step-2);
+  }
+
+  .serving__note {
+    max-width: 60ch;
+    color: var(--ink-2);
+  }
+
+  .routes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .route-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: var(--tap);
+    padding: 0.5rem 0.9rem;
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    text-decoration: none;
+    transition:
+      transform 0.15s var(--ease-out),
+      box-shadow 0.15s var(--ease-out);
+  }
+
+  .route-chip:hover {
+    color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: 3px 3px 0 var(--accent);
+  }
+
+  .route-chip__city {
+    font-weight: 600;
+  }
+
+  .route-chip__time {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  /* ---- Closing note ---- */
+  .cta__grid {
+    display: grid;
+    gap: var(--space-l);
+    align-items: center;
+  }
+
+  .cta__body {
+    max-width: 52ch;
+  }
+
+  @media (min-width: 800px) {
+    .shop__grid {
+      grid-template-columns: minmax(10rem, 14rem) minmax(0, 1.25fr) minmax(0, 1fr);
+      gap: var(--space-xl);
+    }
+  }
+
+  @media (min-width: 900px) {
+    .loc__head {
+      grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
+      align-items: center;
+    }
+
+    .route {
+      justify-self: end;
+    }
+
+    .sheet-body {
+      grid-template-columns: 14rem minmax(0, 1fr);
+      gap: var(--space-2xl);
+    }
+
+    .toc {
+      position: sticky;
+      top: calc(var(--header-h) + 1.25rem);
+    }
+
+    .cta__grid {
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    }
+  }
+</style>
+
+<style is:global>
+  /* Question headings in the markdown body get the same numbers as the
+     contents rail: inline on small screens, hanging in the gutter beside the
+     rail from 900px. The `/ ''` alt keeps the number out of the accessible
+     name (browsers without alt-text support drop the ornament entirely). */
+  .page-location .prose--numbered {
+    counter-reset: sheet-q;
+  }
+
+  .page-location .prose--numbered h2 {
+    position: relative;
+    counter-increment: sheet-q;
+    scroll-margin-top: calc(var(--header-h) + 1.5rem);
+  }
+
+  .page-location .prose--numbered h2::before {
+    content: counter(sheet-q, decimal-leading-zero) / '';
+    display: inline-block;
+    margin-right: 0.55em;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 0.5em;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: var(--accent-ink);
+    vertical-align: 0.35em;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .page-location .prose--numbered h2 + p {
+    font-size: var(--step-1);
+    line-height: 1.45;
+  }
+
+  /* Route tables in the bodies (Providence, East Providence) stay readable on
+     phones: tighter type, cells wrap. */
+  @media (max-width: 599.98px) {
+    .page-location .prose table {
+      font-size: 0.85rem;
+    }
+
+    .page-location .prose th,
+    .page-location .prose td {
+      padding: 0.5em 0.35em;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .page-location .prose--numbered h2::before {
+      position: absolute;
+      right: 100%;
+      top: 0.4em;
+      margin-right: 1.1rem;
+      vertical-align: baseline;
+    }
+  }
+</style>

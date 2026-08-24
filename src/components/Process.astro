@@ -1,0 +1,287 @@
+---
+/**
+ * Process: idea to healed tattoo in four numbered steps, drawn as one strip
+ * of panels on a sheet (Consult / Design / Session / Heal). The panels share
+ * hairline dividers; each carries an outlined numeral, a line icon, a name
+ * and a short note, and an arrow leads from one panel to the next.
+ *
+ * Copy rules: no rates, no deposit amount, no clock hours. The deposit is
+ * always "confirmed when you book".
+ *
+ * Usage:
+ *   <Process sheetNo="No. 03" />
+ *   <Process steps={[...]} heading="…" intro="…" />
+ */
+export interface Step {
+  name: string;
+  text: string;
+  icon?: 'consult' | 'design' | 'session' | 'heal';
+}
+
+export interface Props {
+  steps?: Step[];
+  sheetNo?: string;
+  eyebrow?: string;
+  heading?: string;
+  intro?: string;
+  id?: string;
+}
+
+const DEFAULT_STEPS: Step[] = [
+  {
+    name: 'Consult',
+    icon: 'consult',
+    text: 'Send the idea, placement, rough size and any references through the booking form. Chris replies by email. Larger pieces and cover-ups get an in-person look before anything is drawn.',
+  },
+  {
+    name: 'Design',
+    icon: 'design',
+    text: 'Chris draws the piece for you, for your placement, at your size. Your references set the direction; the drawing is his take on them, usually with a surreal, animated streak.',
+  },
+  {
+    name: 'Session',
+    icon: 'session',
+    text: 'A deposit holds your date; the amount is confirmed when you book. Eat first, drink water, sleep, skip alcohol for twenty-four hours and bring a government ID. Big pieces can take more than one sitting.',
+  },
+  {
+    name: 'Heal',
+    icon: 'heal',
+    text: 'Two to three weeks of surface healing: fragrance-free soap, a thin layer of unscented moisturizer, no sun, soaking or gym. Follow the instructions Chris gives you at your appointment.',
+  },
+];
+
+/* Line icons, 32 x 32, stroked in currentColor. */
+const ICONS: Record<NonNullable<Step['icon']>, string[]> = {
+  consult: [
+    'M4 5.5h15a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-8l-5 4v-4H4a2 2 0 0 1-2-2v-7.5a2 2 0 0 1 2-2Z',
+    'M23 12.5h5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-1.5v3.5l-4.5-3.5h-5.5',
+  ],
+  design: [
+    'M20.5 4.5l7 7L13 26H6v-7L20.5 4.5Z',
+    'M17.5 7.5l7 7',
+    'M6 19l7 7',
+    'M3 30c3-2.5 5-2.5 8 0s5 2.5 8 0 5-2.5 8 0',
+  ],
+  session: [
+    'M12 3.5h10v4.5H12z',
+    'M12 10h10v4.5H12z',
+    'M10 3.5v11',
+    'M8 16.5h15',
+    'M13.5 16.5 7.5 28',
+    'M15.5 16.5 9.5 28',
+    'M8.5 28l-1.5 2.5',
+  ],
+  heal: [
+    'M4.5 17.5 17.5 4.5a4.2 4.2 0 0 1 6 0l4 4a4.2 4.2 0 0 1 0 6L14.5 27.5a4.2 4.2 0 0 1-6 0l-4-4a4.2 4.2 0 0 1 0-6Z',
+    'M11.5 13.5l7 7',
+    'M14.5 10.5l7 7',
+    'M15 15h.01M17 17h.01M13 17h.01M17 13h.01',
+  ],
+};
+
+const {
+  steps = DEFAULT_STEPS,
+  sheetNo = 'No. 03',
+  eyebrow = 'How it works',
+  heading = 'From idea to healed tattoo, in four steps',
+  intro = 'Every piece follows the same road, and most of it happens by email before you ever sit down.',
+  id = 'process',
+} = Astro.props;
+
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<section class="process reveal" id={id} aria-labelledby={`${id}-h`}>
+  <div class="container">
+    <header class="process__head">
+      <p class="eyebrow"><span class="sheet-no">{sheetNo}</span> {eyebrow}</p>
+      <h2 id={`${id}-h`}>{heading}</h2>
+      {intro && <p class="process__intro">{intro}</p>}
+    </header>
+
+    <ol class="process__grid reg-marks" role="list">
+      {
+        steps.map((step, i) => (
+          <li class="process__step">
+            <div class="process__top">
+              <span class="process__num" aria-hidden="true">{pad(i + 1)}</span>
+              {step.icon && ICONS[step.icon] && (
+                <svg class="process__icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true" focusable="false">
+                  {ICONS[step.icon].map((d) => (
+                    <path d={d} />
+                  ))}
+                </svg>
+              )}
+            </div>
+            <h3 class="process__name">
+              <span class="sr-only">Step {i + 1}: </span>
+              {step.name}
+            </h3>
+            <p class="process__text">{step.text}</p>
+            {i < steps.length - 1 && <span class="process__arrow" aria-hidden="true" />}
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  .process {
+    padding-block: var(--space-xl);
+  }
+
+  .process__head {
+    display: grid;
+    gap: var(--space-s);
+    max-width: 60rem;
+    margin-bottom: var(--space-l);
+  }
+
+  .process__intro {
+    color: var(--ink-2);
+    max-width: 52ch;
+  }
+
+  /* Hairline dividers in every layout: 1px gap over a rule-coloured ground. */
+  .process__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: var(--rule-2);
+    border: 1px solid var(--ink);
+    --mark-inset: -9px;
+  }
+
+  .process__step {
+    position: relative;
+    display: grid;
+    gap: 0.65rem;
+    align-content: start;
+    padding: var(--space-m) var(--space-m) var(--space-l);
+    background: var(--paper);
+  }
+
+  .process__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-s);
+  }
+
+  .process__num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--step-5);
+    line-height: 0.85;
+    letter-spacing: -0.04em;
+    color: var(--rule-2);
+    font-variant-numeric: tabular-nums;
+    transition: color 0.2s;
+  }
+
+  @supports (-webkit-text-stroke: 1px black) {
+    .process__num {
+      color: transparent;
+      -webkit-text-stroke: 1.5px var(--ink);
+      transition: -webkit-text-stroke-color 0.2s;
+    }
+
+    .process__step:hover .process__num {
+      -webkit-text-stroke-color: var(--accent);
+    }
+  }
+
+  .process__icon {
+    flex: 0 0 auto;
+    color: var(--accent-ink);
+    margin-top: 0.15rem;
+  }
+
+  .process__icon path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .process__name {
+    font-size: var(--step-2);
+  }
+
+  .process__text {
+    color: var(--ink-2);
+    font-size: var(--step-0);
+    max-width: 34ch;
+  }
+
+  /* Arrow to the next panel: a paper disc sitting on the divider. */
+  .process__arrow {
+    position: absolute;
+    left: 50%;
+    bottom: -15px;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    transform: translateX(-50%);
+    border: 1px solid var(--ink);
+    border-radius: 50%;
+    background: var(--paper-3);
+    color: var(--ink);
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .process__arrow::before {
+    content: '\2193' / '';
+    font-family: var(--font-body);
+    font-weight: 600;
+  }
+
+  @media (min-width: 600px) {
+    .process__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Two columns: arrows go right on the first of each row, down on the second. */
+    .process__step:nth-child(odd) .process__arrow {
+      left: auto;
+      right: -15px;
+      top: 50%;
+      bottom: auto;
+      transform: translateY(-50%);
+    }
+
+    .process__step:nth-child(odd) .process__arrow::before {
+      content: '\2192' / '';
+    }
+  }
+
+  @media (min-width: 1000px) {
+    .process__grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .process__step {
+      padding: var(--space-m) var(--space-m) var(--space-m);
+    }
+
+    .process__step .process__arrow {
+      left: auto;
+      right: -15px;
+      top: 50%;
+      bottom: auto;
+      transform: translateY(-50%);
+    }
+
+    .process__step .process__arrow::before {
+      content: '\2192' / '';
+    }
+  }
+</style>

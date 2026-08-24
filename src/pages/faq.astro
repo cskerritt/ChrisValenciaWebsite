@@ -1,0 +1,69 @@
+---
+/**
+ * /faq/ — every question from the `faq` collection, grouped by topic with a
+ * sticky index. Each answer paragraph is marked `speakable`; the FAQPage
+ * JSON-LD is built from the same answer fields with a SpeakableSpecification
+ * pointing at `.speakable`.
+ */
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import FaqList from '../components/FaqList.astro';
+import Cta from '../components/Cta.astro';
+import shop from '../data/shop.json';
+import { person, faqPage } from '../lib/schema';
+
+const { shop: s } = shop;
+const entries = (await getCollection('faq')).sort((a, b) => a.data.order - b.data.order);
+const items = entries.map((e) => ({ q: e.data.question, a: e.data.answer }));
+
+const title = 'Tattoo FAQ | Chris Valencia, Cranston RI';
+const description =
+  'Answers to questions people ask before booking a tattoo with Chris Valencia at Powerline Tattoo in Cranston, RI: booking, cost, deposits, healing and parking.';
+---
+
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/faq/"
+  breadcrumbs={[{ name: 'FAQ', path: '/faq/' }]}
+  jsonLd={[person(), faqPage(items, { speakable: '.speakable', path: '/faq/' })]}
+  bodyClass="page-faq"
+>
+  <section class="section container faq-page">
+    <header class="faq-page__head">
+      <p class="eyebrow"><span class="sheet-no">No. 05</span> Questions</p>
+      <h1>Questions people ask before booking with Chris</h1>
+      <p class="answer">
+        Here are the questions people ask most before booking a tattoo with Chris Valencia at {s.name} in
+        {s.addressLocality}, Rhode Island: how to book, what it costs, whether a deposit is required, how to
+        prepare, how healing goes and where to park. Each answer comes first, with the detail underneath. Anything
+        missing? Ask through the booking form.
+      </p>
+      <div class="cluster">
+        <a class="btn btn--primary" href="/book/">Request a booking</a>
+        <a class="link-more" href="/pricing/">How quoting works</a>
+      </div>
+    </header>
+
+    <FaqList entries={entries} grouped speakable id="faq" />
+  </section>
+
+  <Cta
+    sheetNo="No. 05"
+    heading="Ask the rest in your booking request."
+    body="Put it in your booking request and Chris will answer when he replies, or call Powerline Tattoo, Monday through Saturday. Either way, the form is where a tattoo starts."
+  />
+</Base>
+
+<style>
+  .faq-page__head {
+    display: grid;
+    gap: var(--space-m);
+    max-width: 60rem;
+    margin-bottom: var(--space-xl);
+  }
+
+  .faq-page__head h1 {
+    max-width: 16ch;
+  }
+</style>

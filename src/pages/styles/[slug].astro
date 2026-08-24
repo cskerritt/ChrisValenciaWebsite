@@ -1,0 +1,766 @@
+---
+/**
+ * /styles/[slug]/ — one flash sheet per style (illustrative, neo-traditional,
+ * new-school, cover-ups), built from src/content/styles/*.md.
+ *
+ * Sheet anatomy, top to bottom:
+ *   1. Header: eyebrow "Sheet No. 0X · Style X of 4", the H1 and the 40–60
+ *      word answer from frontmatter, CTAs, and a "specimen" on the right: one
+ *      framed piece in this style with a rotated stamp, over a legend strip
+ *      of facts computed from the manifest (pieces, color vs black & grey,
+ *      placements seen). A style with no tagged pieces (cover-ups) gets a
+ *      "what to send" panel instead of a picture, because showing fresh work
+ *      as if it were a cover-up would be a lie.
+ *   2. Contents rail (the body's H2 questions, numbered) beside the markdown
+ *      body, whose H2s carry matching hanging numbers via CSS counters.
+ *   3. FlashGrid filtered to `portfolioStyle`; under 4 matches it falls back
+ *      to the featured pieces and says so above the sheet. The grid's own
+ *      full-width sheet note closes the sheet (odd piece counts would
+ *      otherwise leave the last row ragged).
+ *   4. "Where clients drive from": every location page with its drive time
+ *      (the style → location half of the link mesh), led by areaServedNote.
+ *   5. The other three style sheets, then the closing booking note.
+ *
+ * JSON-LD: Service (areaServed = all eight areas) + Person; Base adds WebSite
+ * and BreadcrumbList. No rates, deposits or years anywhere on this template.
+ */
+import type { InferGetStaticPropsType } from 'astro';
+import type { ImageMetadata } from 'astro';
+import { getCollection, render } from 'astro:content';
+import { getImage } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import FlashGrid from '../../components/FlashGrid.astro';
+import portfolio from '../../data/portfolio.json';
+import shop from '../../data/shop.json';
+import { person, service, type PortfolioEntry } from '../../lib/schema';
+import { SERVICE_AREAS } from '../../lib/seo';
+
+export async function getStaticPaths() {
+  const styles = await getCollection('styles');
+  return styles.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+}
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+const { entry } = Astro.props;
+const { data } = entry;
+const { Content, headings } = await render(entry);
+
+const byOrder = <T extends { data: { order: number } }>(a: T, b: T) => a.data.order - b.data.order;
+const allStyles = (await getCollection('styles')).sort(byOrder);
+const locations = (await getCollection('locations')).sort(byOrder);
+const otherStyles = allStyles.filter((s) => s.data.slug !== data.slug);
+
+const { shop: s } = shop;
+const path = `/styles/${data.slug}/`;
+const pad = (n: number) => String(n).padStart(2, '0');
+const sheetNo = pad(data.order);
+
+/* ---- Pieces in this style, from the manifest ---- */
+const items = portfolio as PortfolioEntry[];
+const key = data.portfolioStyle;
+const pieces = items.filter((p) => p.style.includes(key));
+const featured = items.filter((p) => p.featured);
+const MIN_PIECES = 4;
+const enough = pieces.length >= MIN_PIECES;
+// Under four matches: the matches first, then featured work to fill the sheet.
+const sheetItems = enough ? pieces : [...pieces, ...featured.filter((p) => !pieces.includes(p))];
+
+/** The one piece that stands for the style at the top of the sheet. */
+const SPECIMEN: Partial<Record<string, string>> = { 'neo-traditional': 'chris-21' };
+const specimen: PortfolioEntry | undefined =
+  pieces.find((p) => p.id === SPECIMEN[key]) ??
+  pieces.find((p) => p.featured && p.style[0] === key) ??
+  pieces.find((p) => p.featured) ??
+  pieces[0];
+
+const colorCount = pieces.filter((p) => p.style.includes('color')).length;
+const greyCount = pieces.filter((p) => p.style.includes('blackwork')).length;
+const placementCounts = new Map<string, number>();
+for (const p of pieces) if (p.placement) placementCounts.set(p.placement, (placementCounts.get(p.placement) ?? 0) + 1);
+const placements = [...placementCounts.entries()]
+  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  .slice(0, 4)
+  .map(([name]) => name.toLowerCase());
+
+/* ---- Build-time WebP for the specimen (same source set FlashGrid uses) ---- */
+const sources = import.meta.glob<ImageMetadata>('/public/images/portfolio/*.jpg', {
+  eager: true,
+  import: 'default',
+});
+let specimenSrcset: string | undefined;
+if (specimen) {
+  const meta = sources[`/public${specimen.file}`];
+  if (meta) {
+    const img = await getImage({ src: meta, widths: [480, 720, 960], format: 'webp', quality: 80 });
+    specimenSrcset = img.srcSet.attribute;
+  }
+}
+const SPECIMEN_SIZES = '(min-width: 1240px) 28rem, (min-width: 900px) 38vw, 92vw';
+
+/* ---- Contents rail: the body's question headings ---- */
+const toc = headings.filter((h) => h.depth === 2);
+
+/* ---- Drive-time tags for the serving strip ---- */
+const driveTag = (min: number | undefined): string =>
+  min === undefined ? 'statewide' : min === 0 ? 'local' : `about ${min} min`;
+
+const portfolioHref = enough ? `/portfolio/?style=${encodeURIComponent(key)}` : '/portfolio/';
+const styleName = data.title.toLowerCase();
+const serviceName = `${data.title} tattoos`;
+const isCoverUp = key === 'cover-up';
+
+const sheetTitle = enough ? `${data.title} pieces` : 'Related work';
+const workHeading = enough ? `${data.title} work by Chris` : 'Related work from the portfolio';
+const workNote = enough
+  ? `Every ${styleName} piece on file, in sheet order. Featured pieces sit larger. Tap any tile to see it full size.`
+  : pieces.length > 0
+    ? `Only ${pieces.length} ${pieces.length === 1 ? 'piece is' : 'pieces are'} tagged ${styleName} so far; the rest of this sheet is featured work in the styles Chris draws from.`
+    : isCoverUp
+      ? 'No cover-ups are on this site yet: the portfolio here is fresh work. These featured pieces show the neo-traditional and illustrative vocabulary a cover-up is built from. Ask about healed cover-up examples at your consultation.'
+      : `Nothing on the site is tagged ${styleName} yet, so these are the featured pieces. Ask Chris about examples when you book.`;
+---
+
+<Base
+  title={data.metaTitle}
+  description={data.description}
+  canonicalPath={path}
+  ogImage={specimen?.file}
+  ogImageAlt={specimen?.alt}
+  breadcrumbs={[{ name: data.title, path }]}
+  jsonLd={[service(serviceName, data.answer, SERVICE_AREAS, path), person()]}
+  bodyClass="page-style"
+>
+  <article class="style">
+    <header class="section container style__head">
+      <div class="style__intro stack">
+        <p class="eyebrow">
+          <span class="sheet-no">Sheet No. {sheetNo}</span>
+          <span>Style {data.order} of {allStyles.length}</span>
+        </p>
+        <h1>{data.h1}</h1>
+        <p class="answer">{data.answer}</p>
+        <div class="cluster">
+          <a class="btn btn--primary" href="/book/">Request a booking</a>
+          <a class="btn" href={portfolioHref}>{enough ? `See all ${styleName} work` : 'See the portfolio'}</a>
+        </div>
+        <p class="style__tagline pull-quote">{data.tagline}</p>
+      </div>
+
+      <div class="style__specimen">
+        {
+          specimen ? (
+            <figure class="frame reg-marks specimen">
+              <span class="stamp specimen__stamp" aria-hidden="true">
+                {data.title}
+              </span>
+              <picture>
+                {specimenSrcset && <source type="image/webp" srcset={specimenSrcset} sizes={SPECIMEN_SIZES} />}
+                <img
+                  src={specimen.file}
+                  width={specimen.width}
+                  height={specimen.height}
+                  alt={specimen.alt}
+                  loading="eager"
+                  fetchpriority="high"
+                  decoding="async"
+                />
+              </picture>
+              <figcaption>
+                <span class="sheet-no">No. {specimen.id.replace(/^\D+/, '')}</span>
+                <span>
+                  {specimen.title} · {specimen.placement}
+                </span>
+              </figcaption>
+            </figure>
+          ) : (
+            <div class="sheet sheet--paper-2 reg-marks specimen-note">
+              <span class="sheet-no sheet__no">Before you book</span>
+              <h2 class="specimen-note__h">Send photos, not guesses</h2>
+              {isCoverUp ? (
+                <>
+                  <p>
+                    Cover-ups are assessed in person, so the reply to your request usually sets up a consultation
+                    first. To get there faster, send:
+                  </p>
+                  <ul class="specimen-note__list">
+                    <li>Clear, well-lit photos of the existing tattoo, straight on and from the sides</li>
+                    <li>What you'd like instead, even roughly</li>
+                    <li>How big you're willing to go; cover-ups run larger and darker than the original</li>
+                  </ul>
+                </>
+              ) : (
+                <p>
+                  Describe the idea, where it goes and roughly how big, and attach the references that matter.
+                  Chris replies by email to talk it through.
+                </p>
+              )}
+            </div>
+          )
+        }
+
+        {
+          pieces.length > 0 && (
+            <dl class="style__facts" aria-label={`${data.title} pieces on file`}>
+              <div class="style__fact">
+                <dt>On file</dt>
+                <dd>
+                  <span class="style__num">{pieces.length}</span> {pieces.length === 1 ? 'piece' : 'pieces'}
+                </dd>
+              </div>
+              <div class="style__fact">
+                <dt>Color · black &amp; grey</dt>
+                <dd>
+                  <span class="style__num">{colorCount}</span> · <span class="style__num">{greyCount}</span>
+                </dd>
+              </div>
+              <div class="style__fact style__fact--wide">
+                <dt>Seen on</dt>
+                <dd>{placements.join(', ')}</dd>
+              </div>
+            </dl>
+          )
+        }
+      </div>
+    </header>
+
+    <div class="container sheet-body">
+      {
+        toc.length > 0 && (
+          <nav class="toc" aria-label="On this sheet">
+            <p class="toc__label">
+              <span class="sheet-no">Contents</span>
+              <span class="toc__count">
+                {toc.length} {toc.length === 1 ? 'question' : 'questions'}
+              </span>
+            </p>
+            <ol class="toc__list" role="list">
+              {toc.map((h, i) => (
+                <li>
+                  <a class="toc__link" href={`#${h.slug}`}>
+                    <span class="toc__no sheet-no" aria-hidden="true">
+                      {pad(i + 1)}
+                    </span>
+                    <span>{h.text}</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )
+      }
+      <div class="prose prose--numbered">
+        <Content />
+      </div>
+    </div>
+
+    <section class="section container" aria-labelledby="style-work-h">
+      <div class="work__head">
+        <div class="stack">
+          <p class="eyebrow"><span class="sheet-no">No. {sheetNo}</span> The sheet</p>
+          <h2 id="style-work-h">{workHeading}</h2>
+          <p class="work__note muted">{workNote}</p>
+        </div>
+        <a class="link-more work__all" href={portfolioHref}>
+          {enough ? `All ${items.length} pieces in the portfolio` : `See all ${items.length} pieces`}
+        </a>
+      </div>
+      <FlashGrid
+        items={sheetItems}
+        heroes={enough ? 'featured' : 'none'}
+        id="style-sheet"
+        sheetNo={`No. ${sheetNo}`}
+        sheetTitle={sheetTitle}
+        label={enough ? `${data.title} tattoos by Chris Valencia` : 'Featured tattoos by Chris Valencia'}
+      />
+    </section>
+
+    <section class="section--tight container serving" aria-labelledby="style-serving-h">
+      <hr class="rule-hand rule-hand--accent rule-hand--tight" />
+      <div class="serving__head">
+        <div class="stack">
+          <h2 id="style-serving-h" class="serving__h">Where clients drive from</h2>
+          <p class="serving__note">{data.areaServedNote}</p>
+        </div>
+        <p class="serving__shop muted">
+          {s.name}, {s.streetAddress}, {s.addressLocality}, {s.addressRegion} · {s.hoursNote.toLowerCase()}
+        </p>
+      </div>
+      <ul class="routes reveal" role="list">
+        {
+          locations.map((loc) => (
+            <li>
+              <a class="route-chip" href={`/tattoo-artist/${loc.data.slug}/`}>
+                <span class="route-chip__city">{loc.data.city}</span>
+                <span class="route-chip__time">{driveTag(loc.data.driveMinutes)}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="section container" aria-labelledby="style-others-h">
+      <div class="stack" style="margin-bottom: var(--space-m)">
+        <p class="eyebrow">The other sheets</p>
+        <h2 id="style-others-h">If your idea leans another way</h2>
+      </div>
+      <ul class="style-cards" role="list">
+        {
+          otherStyles.map((st, i) => (
+            <li class="reveal" style={`--reveal-delay:${(i * 0.08).toFixed(2)}s`}>
+              <a class="style-card" href={`/styles/${st.data.slug}/`}>
+                <span class="style-card__no sheet-no" aria-hidden="true">
+                  {pad(st.data.order)}
+                </span>
+                <span class="style-card__name">{st.data.title}</span>
+                <span class="style-card__tag">{st.data.tagline}</span>
+                <span class="style-card__more">Read the sheet</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="section--tight container" aria-labelledby="style-cta-h">
+      <div class="sheet sheet--paper-2 reg-marks reveal cta">
+        <span class="sheet-no sheet__no">Next</span>
+        <div class="cta__grid">
+          <div class="stack">
+            <h2 id="style-cta-h">Ready to draw it?</h2>
+            <p class="cta__body">
+              Send the idea, the placement and any references through the booking form. Chris replies by email,
+              a consultation settles the design, and a deposit holds your date; the amount is confirmed when you
+              book. {s.name} is {s.hoursNote.toLowerCase()}.
+            </p>
+            <div class="cluster">
+              <a class="btn btn--primary" href="/book/">Request a booking</a>
+              <a class="link-more" href="/pricing/">How quoting works</a>
+            </div>
+          </div>
+          <p class="pull-quote cta__quote">Fun, surreal images with a very animated, whimsical feel.</p>
+        </div>
+      </div>
+    </section>
+  </article>
+</Base>
+
+<style>
+  /* ---- Header ---- */
+  .style__head {
+    display: grid;
+    gap: var(--space-xl) var(--space-l);
+    align-items: start;
+  }
+
+  .style__intro {
+    max-width: 40rem;
+  }
+
+  .style__tagline {
+    margin-top: var(--space-m);
+    font-size: var(--step-1);
+  }
+
+  .style__specimen {
+    display: grid;
+    gap: var(--space-m);
+    width: 100%;
+    max-width: 30rem;
+    justify-self: center;
+  }
+
+  .specimen {
+    margin-top: 0.9rem; /* room for the stamp to overlap the top edge */
+  }
+
+  .specimen__stamp {
+    position: absolute;
+    top: -0.95em;
+    right: clamp(0.75rem, 4%, 1.5rem);
+    z-index: 3;
+    background: var(--paper-3);
+    transform: rotate(3deg);
+  }
+
+  .specimen-note {
+    padding-top: var(--space-l);
+  }
+
+  .specimen-note__h {
+    font-size: var(--step-2);
+    margin-bottom: var(--space-s);
+  }
+
+  .specimen-note p {
+    max-width: 44ch;
+  }
+
+  .specimen-note__list {
+    margin-top: var(--space-s);
+    padding-left: 1.2em;
+  }
+
+  .specimen-note__list li + li {
+    margin-top: 0.4em;
+  }
+
+  .specimen-note__list li::marker {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  .style__facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border: 1px solid var(--ink);
+    background: var(--paper-3);
+  }
+
+  .style__fact {
+    padding: 0.7rem var(--space-s);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .style__fact:first-child {
+    border-right: 1px solid var(--rule);
+  }
+
+  .style__fact--wide {
+    grid-column: 1 / -1;
+    border-bottom: 0;
+  }
+
+  .style__fact dt {
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .style__fact dd {
+    margin-top: 0.2rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    line-height: 1.3;
+  }
+
+  .style__fact--wide dd::first-letter {
+    text-transform: uppercase;
+  }
+
+  .style__num {
+    font-family: var(--font-display);
+    font-style: normal;
+    font-weight: 800;
+    font-size: var(--step-2);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--accent-ink);
+  }
+
+  /* ---- Contents rail + body ---- */
+  .sheet-body {
+    display: grid;
+    gap: var(--space-l);
+    align-items: start;
+    padding-block: var(--space-s) var(--space-l);
+  }
+
+  .toc {
+    border-top: 1.5px solid var(--ink);
+  }
+
+  .toc__label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0 0.35rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .toc__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .toc__link {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    min-height: var(--tap);
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--rule);
+    font-size: var(--step--1);
+    font-weight: 500;
+    line-height: 1.35;
+    text-decoration-color: transparent;
+    color: var(--ink);
+  }
+
+  .toc__link:hover {
+    color: var(--accent-ink);
+    text-decoration-color: currentColor;
+  }
+
+  .toc__no {
+    flex: 0 0 1.7em;
+    font-size: var(--step--1);
+  }
+
+  /* ---- The sheet (FlashGrid) ---- */
+  .work__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-s) var(--space-l);
+    margin-bottom: var(--space-m);
+  }
+
+  .work__note {
+    max-width: 60ch;
+  }
+
+  .work__all {
+    padding-block: 0.5rem;
+  }
+
+  /* ---- Serving strip ---- */
+  .serving__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-s) var(--space-l);
+    margin-bottom: var(--space-m);
+  }
+
+  .serving__h {
+    font-size: var(--step-2);
+  }
+
+  .serving__note {
+    max-width: 60ch;
+  }
+
+  .serving__shop {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    max-width: 30ch;
+  }
+
+  .routes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .route-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: var(--tap);
+    padding: 0.5rem 0.9rem;
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    text-decoration: none;
+    transition:
+      transform 0.15s var(--ease-out),
+      box-shadow 0.15s var(--ease-out);
+  }
+
+  .route-chip:hover {
+    color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: 3px 3px 0 var(--accent);
+  }
+
+  .route-chip__city {
+    font-weight: 600;
+  }
+
+  .route-chip__time {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  /* ---- Other sheets ---- */
+  .style-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--space-m);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .style-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    height: 100%;
+    padding: var(--space-m);
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    text-decoration: none;
+    transition:
+      transform 0.15s var(--ease-out),
+      box-shadow 0.15s var(--ease-out);
+  }
+
+  .style-card:hover {
+    color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .style-card__no {
+    font-size: var(--step-0);
+  }
+
+  .style-card__name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-2);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .style-card__tag {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--ink-2);
+    text-wrap: pretty;
+  }
+
+  .style-card__more {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    margin-top: auto;
+    padding-top: var(--space-s);
+    font-weight: 600;
+    font-size: var(--step--1);
+    color: var(--accent-ink);
+  }
+
+  .style-card__more::after {
+    content: '\2192' / '';
+    display: inline-block;
+    transition: transform 0.15s var(--ease-out);
+  }
+
+  .style-card:hover .style-card__more::after {
+    transform: translateX(3px);
+  }
+
+  /* ---- Closing note ---- */
+  .cta__grid {
+    display: grid;
+    gap: var(--space-l);
+    align-items: center;
+  }
+
+  .cta__body {
+    max-width: 52ch;
+  }
+
+  @media (min-width: 900px) {
+    .style__head {
+      grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
+      align-items: center;
+    }
+
+    .style__specimen {
+      justify-self: end;
+    }
+
+    .sheet-body {
+      grid-template-columns: 14rem minmax(0, 1fr);
+      gap: var(--space-2xl);
+    }
+
+    .toc {
+      position: sticky;
+      top: calc(var(--header-h) + 1.25rem);
+    }
+
+    .cta__grid {
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 479.98px) {
+    .style__facts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .style__fact:first-child {
+      border-right: 0;
+    }
+  }
+</style>
+
+<style is:global>
+  /* Question headings in the markdown body get the same numbers as the
+     contents rail: inline on small screens, hanging in the gutter beside the
+     rail from 900px. The `/ ''` alt keeps the number out of the accessible
+     name (browsers without alt-text support drop the ornament entirely). */
+  .page-style .prose--numbered {
+    counter-reset: sheet-q;
+  }
+
+  .page-style .prose--numbered h2 {
+    position: relative;
+    counter-increment: sheet-q;
+    scroll-margin-top: calc(var(--header-h) + 1.5rem);
+  }
+
+  .page-style .prose--numbered h2::before {
+    content: counter(sheet-q, decimal-leading-zero) / '';
+    display: inline-block;
+    margin-right: 0.55em;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 0.5em;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: var(--accent-ink);
+    vertical-align: 0.35em;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .page-style .prose--numbered h2 + p {
+    font-size: var(--step-1);
+    line-height: 1.45;
+  }
+
+  @media (min-width: 900px) {
+    .page-style .prose--numbered h2::before {
+      position: absolute;
+      right: 100%;
+      top: 0.4em;
+      margin-right: 1.1rem;
+      vertical-align: baseline;
+    }
+  }
+</style>

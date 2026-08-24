@@ -1,9 +1,10 @@
 ---
 /**
  * /book/ — the site's one conversion page. Answer-first paragraph on what
- * happens after you submit, the form, and a sidebar with what to include plus
- * the shop's NAP. No prices or deposit amounts: those are confirmed when Chris
- * replies (see src/data/shop.json `unconfirmed`).
+ * happens after you submit, a four-step "what happens next" strip, the form,
+ * and a sidebar with what to include plus the shop's NAP. No prices, rates or
+ * deposit amounts anywhere: those are confirmed when Chris replies (see
+ * src/data/shop.json `unconfirmed` and README § Facts to confirm).
  */
 import Base from '../layouts/Base.astro';
 import BookingForm from '../components/BookingForm.astro';
@@ -19,6 +20,25 @@ const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeU
   `${s.streetAddress}, ${s.addressLocality}, ${s.addressRegion} ${s.postalCode}`,
 )}`;
 const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0, 3)}`;
+
+const steps = [
+  {
+    name: 'You send the request',
+    text: 'Your idea, placement, rough size, budget range, timing and any reference images. No account, nothing to install.',
+  },
+  {
+    name: 'Chris replies by email',
+    text: 'He talks through the idea, size and placement, and says whether it needs an in-person look first. Cover-ups and large pieces do.',
+  },
+  {
+    name: 'A deposit holds your date',
+    text: 'The amount and the terms are confirmed when you book. The price of the piece itself is quoted at the consultation.',
+  },
+  {
+    name: 'Your session at Powerline',
+    text: `${s.streetAddress}, ${s.addressLocality}. By appointment only. Bring a valid government-issued photo ID; the minimum age is 18.`,
+  },
+];
 ---
 
 <Base
@@ -34,14 +54,36 @@ const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0
       <p class="eyebrow"><span class="sheet-no">No. 04</span> Booking</p>
       <h1>Request a booking with Chris</h1>
       <p class="answer">
-        Fill in the form and Chris replies by email to talk through the idea, placement and sizing. For
-        custom work that usually means a consultation before the design is drawn. A deposit holds your
-        appointment date; the amount is confirmed when you book. The shop is by appointment only.
+        Fill in the form and Chris replies by email to talk through the idea, placement and sizing. For custom work
+        that usually means a consultation before the design is drawn. A deposit holds your appointment date; the
+        amount is confirmed when you book. The shop is by appointment only.
       </p>
     </header>
 
+    <section class="book__steps sheet reg-marks reveal" aria-labelledby="book-steps-h">
+      <span class="sheet-no sheet__no">What happens next</span>
+      <h2 id="book-steps-h" class="sr-only">What happens after you send the form</h2>
+      <ol class="steps" role="list">
+        {
+          steps.map((step, i) => (
+            <li class="steps__item">
+              <span class="steps__no sheet-no sheet-no--lg" aria-hidden="true">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <h3 class="steps__name">
+                <span class="sr-only">Step {i + 1}: </span>
+                {step.name}
+              </h3>
+              <p class="steps__text">{step.text}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
     <div class="book__layout">
-      <div class="book__form reveal">
+      {/* No scroll-reveal on the form itself: the conversion element never waits on an observer. */}
+      <div class="book__form">
         <BookingForm />
       </div>
 
@@ -77,14 +119,14 @@ const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0
             <span class="serif">{dayRange}</span>
           </p>
           <p class="muted small">
-            Street and lot parking near the shop; confirm the details when you book. Directions from every
-            nearby city are on the <a href="/tattoo-artist/cranston/">Cranston page</a>.
+            Street and lot parking near the shop; confirm the details when you book. Directions from every nearby
+            city are on the <a href="/tattoo-artist/cranston/">Cranston page</a>.
           </p>
         </div>
 
         <p class="book__links small">
-          Questions first? Read the <a href="/faq/">FAQ</a>, <a href="/pricing/">how quoting works</a>, or
-          browse the <a href="/portfolio/">portfolio</a>.
+          Questions first? Read the <a href="/faq/">FAQ</a>, <a href="/pricing/">how quoting works</a>, or browse the
+          <a href="/portfolio/">portfolio</a>.
         </p>
       </aside>
     </div>
@@ -94,7 +136,45 @@ const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0
 <style>
   .book__head {
     max-width: 60rem;
+    margin-bottom: var(--space-l);
+  }
+
+  .book__steps {
     margin-bottom: var(--space-xl);
+    padding-block: var(--space-l);
+  }
+
+  .steps {
+    display: grid;
+    gap: var(--space-m) var(--space-l);
+    counter-reset: step;
+  }
+
+  .steps__item {
+    position: relative;
+    display: grid;
+    gap: 0.35rem;
+    padding-left: 3.25rem;
+    min-width: 0;
+  }
+
+  .steps__no {
+    position: absolute;
+    left: 0;
+    top: 0.05em;
+  }
+
+  .steps__name {
+    font-size: var(--step-0);
+    line-height: 1.15;
+    text-wrap: pretty;
+  }
+
+  .steps__text {
+    color: var(--ink-2);
+    font-size: var(--step--1);
+    line-height: 1.5;
+    text-wrap: pretty;
   }
 
   .book__layout {
@@ -160,7 +240,26 @@ const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0
     font-size: var(--step-1);
   }
 
+  @media (min-width: 600px) {
+    .steps {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   @media (min-width: 960px) {
+    .steps {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .steps__item + .steps__item {
+      border-left: 1px solid var(--rule);
+      padding-left: calc(3.25rem + var(--space-m));
+    }
+
+    .steps__item + .steps__item .steps__no {
+      left: var(--space-m);
+    }
+
     .book__layout {
       grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr);
     }

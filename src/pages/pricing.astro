@@ -1,0 +1,380 @@
+---
+/**
+ * /pricing/ — how a quote comes together, with no numbers. Rates, the shop
+ * minimum and the deposit amount are all "confirmed when you book" (see
+ * shop.json `unconfirmed`); payment methods are not mentioned because they
+ * are unknown. The question headings double as an FAQPage for answer engines.
+ */
+import Base from '../layouts/Base.astro';
+import Cta from '../components/Cta.astro';
+import shop from '../data/shop.json';
+import { person, tattooParlor, faqPage } from '../lib/schema';
+
+const { shop: s } = shop;
+
+const title = 'Tattoo Pricing & Deposits | Chris Valencia, Cranston RI';
+const description =
+  'How Chris Valencia quotes a tattoo at Powerline Tattoo in Cranston, RI: size, placement, detail, color, sessions. Rates and deposit are confirmed when you book.';
+
+const factors = [
+  { name: 'Size', note: 'The biggest lever. More skin, more hours.' },
+  { name: 'Placement', note: 'Ribs, hands, necks and feet are slower going than a forearm or calf; awkward spots add time.' },
+  { name: 'Detail', note: 'Fine line work, backgrounds and smooth shading take longer than bold, simple shapes.' },
+  { name: 'Color', note: 'Full color usually means more passes than black and grey; a limited palette sits in between.' },
+  { name: 'Sessions', note: 'Large pieces are built over more than one sitting. How sessions are priced is explained at your consultation.' },
+];
+
+const qa = [
+  {
+    id: 'what-decides',
+    q: 'What decides the price of a tattoo?',
+    a: 'Five things: size, placement, level of detail, color versus black and grey, and how many sessions the piece needs. Size and detail move the number most. A palm-sized single subject and a full upper arm with a background are different days of work, even in the same style, and the quote reflects the hours.',
+  },
+  {
+    id: 'get-a-quote',
+    q: 'How do I get a quote?',
+    a: 'Send a booking request with the idea, placement, rough size, your budget range and reference images. Chris replies by email; once the design is settled, usually at a consultation, you get the quote. The budget range on the form is not a price list; it lets the design be scaled to what you want to spend.',
+  },
+  {
+    id: 'deposit',
+    q: 'Is a deposit required?',
+    a: 'Yes, a deposit holds your appointment date, and the amount is confirmed when you book, not here. A deposit generally protects the drawing time that happens before you ever sit in the chair. Ask about the reschedule terms when you confirm your date, and give as much notice as you can if plans change.',
+  },
+  {
+    id: 'minimum',
+    q: 'Is there a minimum, or an hourly rate?',
+    a: 'Both are confirmed when you book. Most shops have a minimum charge that covers setup and single-use supplies for even the smallest piece, and rates by the hour or by the piece for larger work. Which applies to your tattoo, and the numbers, come from Chris at your consultation, not from this page.',
+  },
+  {
+    id: 'keep-cost-down',
+    q: 'How can I keep the cost down?',
+    a: 'Simplify the design rather than shrinking it: fewer elements, a limited palette, or black and grey. Choose an easy placement like the forearm or calf. Come with clear references so the drawing lands in fewer rounds. Give your budget range up front; the form asks for it so the design can be scaled to fit.',
+  },
+];
+
+const details: Record<string, string> = {
+  'what-decides':
+    'Style matters less than you might think. A neo-traditional piece and an illustrative piece of the same size and density take similar time; what changes the day is how much of the skin gets worked and how carefully.',
+  'get-a-quote':
+    'Cover-ups and large pieces need an in-person look before anyone can quote them honestly, so expect a consultation first. Small, simple pieces can often be quoted from the email exchange.',
+  deposit:
+    'The deposit and how it applies to the final cost are explained when you book. If you need to move a date, the sooner you say so, the better for everyone.',
+  minimum:
+    'No dollar figures appear on this site on purpose. A quote is only honest once the design exists, and a number pulled from a page would be either wrong or padded.',
+  'keep-cost-down':
+    'What not to do: shrink a detailed design until it will not age well. A simpler piece at the right size beats a busy one squeezed down, and Chris will say so if a size is not going to work.',
+};
+
+const jsonLd = [
+  person(),
+  tattooParlor(),
+  faqPage(
+    qa.map(({ q, a }) => ({ q, a })),
+    { path: '/pricing/' },
+  ),
+];
+
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/pricing/"
+  breadcrumbs={[{ name: 'Pricing', path: '/pricing/' }]}
+  jsonLd={jsonLd}
+  bodyClass="page-pricing"
+>
+  <section class="section container pricing">
+    <header class="pricing__head">
+      <p class="eyebrow"><span class="sheet-no">No. 06</span> Pricing</p>
+      <h1>How tattoo pricing works with Chris</h1>
+      <p class="answer">
+        Every tattoo is quoted at your consultation, once the idea, size and placement are settled, because those
+        are what set the price. Rates and the shop minimum are confirmed when you book. A deposit is required to
+        hold your appointment, and the amount is confirmed when you book. No prices are listed here on purpose.
+      </p>
+      <ul class="stamps" role="list" aria-label="What is confirmed when you book">
+        <li><span class="stamp">Rates: confirmed when you book</span></li>
+        <li><span class="stamp">Minimum: confirmed when you book</span></li>
+        <li><span class="stamp">Deposit: confirmed when you book</span></li>
+      </ul>
+    </header>
+
+    <!-- The quote, typeset as a formula with no numbers in it. -->
+    <p class="formula reg-marks" aria-label="Size times placement times detail times color times sessions equals a quote at your consultation">
+      {
+        factors.map((f, i) => (
+          <>
+            <span class="formula__term">{f.name}</span>
+            {i < factors.length - 1 && <span class="formula__op" aria-hidden="true">×</span>}
+          </>
+        ))
+      }
+      <span class="formula__op" aria-hidden="true">=</span>
+      <span class="formula__result">Quoted at your consultation</span>
+    </p>
+
+    <div class="pricing__grid">
+      <div class="pricing__main">
+        {
+          qa.map((item, i) => (
+            <section class="pq" id={item.id} aria-labelledby={`${item.id}-h`}>
+              <span class="pq__no sheet-no" aria-hidden="true">No. {pad(i + 1)}</span>
+              <div class="pq__body">
+                <h2 id={`${item.id}-h`}>{item.q}</h2>
+                <p class="answer">{item.a}</p>
+                {item.id === 'what-decides' && (
+                  <dl class="factors">
+                    {factors.map((f) => (
+                      <div class="factors__row">
+                        <dt>{f.name}</dt>
+                        <dd>{f.note}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {details[item.id] && <p class="pq__more">{details[item.id]}</p>}
+              </div>
+            </section>
+          ))
+        }
+      </div>
+
+      <aside class="pricing__aside">
+        <div class="sheet sheet--paper-2 reg-marks">
+          <span class="sheet-no sheet__no">Quote sheet</span>
+          <p class="aside__lead">What the form asks for, so the quote can be honest.</p>
+          <ol class="aside__list">
+            <li>The idea, in a sentence or two</li>
+            <li>Placement and rough size</li>
+            <li>Color or black and grey, if you know</li>
+            <li>Budget range</li>
+            <li>Timing</li>
+            <li>Reference images</li>
+          </ol>
+          <a class="btn btn--primary btn--block" href="/book/">Request a quote</a>
+          <p class="small muted aside__foot">
+            Or call {s.name} at <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a>. The shop is
+            {s.hoursNote.toLowerCase()}.
+          </p>
+        </div>
+        <p class="small muted aside__links">
+          Related: <a href="/faq/">FAQ</a>, <a href="/styles/cover-ups/">cover-ups</a>,
+          <a href="/aftercare/">aftercare</a>.
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  <Cta
+    sheetNo="No. 06"
+    heading="Get a quote for your idea"
+    body="Send the idea, placement, rough size and budget range through the booking form. Chris replies by email, quotes the piece once the design is settled, and a deposit holds your date; the amount is confirmed when you book."
+    primaryLabel="Request a quote"
+  />
+</Base>
+
+<style>
+  .pricing__head {
+    display: grid;
+    gap: var(--space-m);
+    max-width: 60rem;
+    margin-bottom: var(--space-l);
+  }
+
+  .pricing__head h1 {
+    max-width: 16ch;
+  }
+
+  .stamps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem 1.4rem;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .stamps .stamp {
+    font-size: 0.72rem;
+  }
+
+  .stamps li:nth-child(2) .stamp {
+    transform: rotate(1.5deg);
+  }
+
+  .stamps li:nth-child(3) .stamp {
+    transform: rotate(-1deg);
+  }
+
+  /* Formula */
+  .formula {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35em 0.6em;
+    padding: var(--space-m) var(--space-m);
+    margin-bottom: var(--space-xl);
+    border: 1px solid var(--ink);
+    background: var(--paper-3);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(1.25rem, 0.9rem + 1.6vw, 2.1rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    --mark-inset: -9px;
+  }
+
+  .formula__op {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent-ink);
+  }
+
+  .formula__result {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 0.72em;
+    padding: 0.35em 0.7em;
+    color: var(--accent-ink);
+    border: 1.5px solid currentColor;
+    outline: 1.5px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 3px;
+    transform: rotate(-2deg);
+  }
+
+  .pricing__grid {
+    display: grid;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  @media (min-width: 960px) {
+    .pricing__grid {
+      grid-template-columns: minmax(0, 1.6fr) minmax(17rem, 1fr);
+    }
+
+    .pricing__aside {
+      position: sticky;
+      top: calc(var(--header-h) + var(--space-m));
+    }
+  }
+
+  .pricing__main {
+    display: grid;
+    gap: 0;
+    max-width: 64rem;
+  }
+
+  .pq {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem var(--space-m);
+    padding-block: var(--space-l);
+    border-top: 1px solid var(--ink);
+    scroll-margin-top: calc(var(--header-h) + 1rem);
+  }
+
+  .pq__no {
+    padding-top: 0.5em;
+  }
+
+  .pq__body {
+    display: grid;
+    gap: var(--space-s);
+  }
+
+  .pq h2 {
+    max-width: 20ch;
+  }
+
+  .pq__more {
+    max-width: 58ch;
+    color: var(--ink-2);
+  }
+
+  @media (min-width: 640px) {
+    .pq {
+      grid-template-columns: 4.5rem minmax(0, 1fr);
+    }
+  }
+
+  .factors {
+    display: grid;
+    margin-top: var(--space-xs);
+    border: 1px solid var(--rule-2);
+    background: var(--paper-3);
+    max-width: 58ch;
+  }
+
+  .factors__row {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .factors__row:last-child {
+    border-bottom: 0;
+  }
+
+  .factors__row dt {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-1);
+    line-height: 1.1;
+  }
+
+  .factors__row dd {
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .factors__row dt {
+    overflow-wrap: normal;
+  }
+
+  @media (min-width: 560px) {
+    .factors__row {
+      grid-template-columns: 9rem minmax(0, 1fr);
+      gap: var(--space-s);
+      align-items: baseline;
+    }
+  }
+
+  .aside__lead {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-1);
+    line-height: 1.3;
+    margin-bottom: var(--space-s);
+  }
+
+  .aside__list {
+    padding-left: 1.3em;
+    margin: 0 0 var(--space-m);
+  }
+
+  .aside__list li + li {
+    margin-top: 0.4em;
+  }
+
+  .aside__list li::marker {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    color: var(--accent-ink);
+  }
+
+  .aside__foot {
+    margin-top: var(--space-s);
+  }
+
+  .aside__links {
+    margin-top: var(--space-s);
+  }
+</style>

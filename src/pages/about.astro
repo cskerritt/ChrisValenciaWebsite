@@ -1,0 +1,504 @@
+---
+/**
+ * /about/ — who Chris is, where he came from, what he likes to draw, where he
+ * works. Bio facts are the verified ones from the spec (small West Texas town,
+ * about eight years tattooing there, Atlanta area about ten years ago, now
+ * full time in Rhode Island); nothing else is quantified. Person JSON-LD.
+ */
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import Base from '../layouts/Base.astro';
+import VideoEmbed from '../components/VideoEmbed.astro';
+import Cta from '../components/Cta.astro';
+import portfolio from '../data/portfolio.json';
+import shop from '../data/shop.json';
+import { person, type PortfolioEntry } from '../lib/schema';
+import { STYLE_PAGES, LOCATION_PAGES } from '../lib/seo';
+
+const { shop: s, artist } = shop;
+const items = portfolio as PortfolioEntry[];
+
+const title = 'About Chris Valencia | Tattoo Artist, Cranston RI';
+const description =
+  'Chris Valencia is a tattoo artist from West Texas, now a resident artist at Powerline Tattoo in Cranston, RI. Illustrative, neo-traditional and new-school work.';
+const headshotAlt = 'Chris Valencia in a black cap and T-shirt, tattooing with a machine in his gloved hand';
+
+const sources = import.meta.glob<ImageMetadata>('/public/images/**/*.jpg', {
+  eager: true,
+  import: 'default',
+});
+const headMeta = sources[`/public${artist.headshot}`];
+const headSet = headMeta
+  ? await getImage({ src: headMeta, widths: [480, 640, 800], format: 'webp', quality: 82 })
+  : null;
+const HEAD_SIZES = '(min-width: 900px) 520px, 92vw';
+
+/* The blue tit sits square in its frame, so it crops well behind a 16:9 play mark. */
+const poster = items.find((p) => p.id === 'chris-08') ?? items[0];
+
+const journey = [
+  { place: 'West Texas', note: 'Born and raised in a small town, and tattooed there for about eight years.' },
+  { place: 'Atlanta, Georgia area', note: 'Moved about ten years ago and kept tattooing.' },
+  { place: 'Rhode Island', note: `Now full time, as a resident artist at ${s.name} in ${s.addressLocality}.` },
+];
+
+const subjects = [
+  'Pets and wildlife',
+  'Botanicals',
+  'Characters you grew up with',
+  'Objects with a story',
+  'Memorial pieces',
+  'Mash-ups of two ideas',
+];
+
+const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0, 3)}`;
+const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+  `${s.streetAddress}, ${s.addressLocality}, ${s.addressRegion} ${s.postalCode}`,
+)}`;
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/about/"
+  ogImage={artist.headshot}
+  ogImageAlt={headshotAlt}
+  ogType="profile"
+  breadcrumbs={[{ name: 'About', path: '/about/' }]}
+  jsonLd={[person()]}
+  bodyClass="page-about"
+>
+  <section class="section container about-hero">
+    <div class="about-hero__grid">
+      <div class="about-hero__copy stack">
+        <p class="eyebrow"><span class="sheet-no">No. 03</span> About</p>
+        <h1>About Chris Valencia</h1>
+        <p class="answer">
+          Chris Valencia is a resident artist at {s.name} in {s.addressLocality}, Rhode Island. He grew up in a
+          small West Texas town, tattooed there for about eight years, moved to the Atlanta area about ten years
+          ago, and now works full time in Rhode Island. He works all styles and prefers illustrative,
+          neo-traditional and new-school.
+        </p>
+        <div class="cluster">
+          <a class="btn btn--primary" href="/book/">Request a booking</a>
+          <a class="btn" href={artist.instagram} rel="me noopener">{artist.instagramHandle} on Instagram</a>
+        </div>
+      </div>
+
+      <figure class="frame reg-marks about-hero__photo">
+        <picture>
+          {headSet && <source type="image/webp" srcset={headSet.srcSet.attribute} sizes={HEAD_SIZES} />}
+          <img
+            src={artist.headshot}
+            width="800"
+            height="600"
+            alt={headshotAlt}
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+          />
+        </picture>
+        <figcaption>
+          <span class="sheet-no">Chris Valencia</span>
+          <span>At the machine</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section container about-body">
+    <div class="about-body__grid">
+      <div class="about-body__main">
+        <section class="about-q" aria-labelledby="q-from">
+          <h2 id="q-from">Where is Chris Valencia from?</h2>
+          <p class="answer">
+            A small town in West Texas, where he was born and raised and tattooed for about eight years. About ten
+            years ago he moved to the Atlanta, Georgia area, and he now lives and works full time in Rhode Island,
+            tattooing at {s.name} on Reservoir Avenue in {s.addressLocality}.
+          </p>
+          <ol class="journey" role="list">
+            {
+              journey.map((stop, i) => (
+                <li class="journey__stop">
+                  <span class="journey__no sheet-no" aria-hidden="true">{pad(i + 1)}</span>
+                  <span class="journey__place">{stop.place}</span>
+                  <span class="journey__note">{stop.note}</span>
+                </li>
+              ))
+            }
+          </ol>
+          <p>
+            The portfolio has range to match the mileage: black-and-grey wildlife next to candy-colored cartoons, a
+            watercolor songbird next to a ship sailing out of a teacup. See it in the
+            <a href="/portfolio/">portfolio</a>.
+          </p>
+        </section>
+
+        <section class="about-q" aria-labelledby="q-likes">
+          <h2 id="q-likes">What does Chris like to tattoo?</h2>
+          <p class="answer">
+            Fun, surreal images with a very animated, whimsical feel, in his own words. He works all styles and
+            prefers illustrative, neo-traditional and new-school, and he likes combining elements: a tiger
+            crawling through blossoms, three trout blooming from a ring box, a skull lit like a synthwave poster.
+            Color and black and grey both.
+          </p>
+          <p>
+            Each style has its own page: <a href={STYLE_PAGES[0].path}>{STYLE_PAGES[0].name}</a> for
+            storybook detail and watercolor, <a href={STYLE_PAGES[1].path}>{STYLE_PAGES[1].name}</a> for bold
+            line and deep color, <a href={STYLE_PAGES[2].path}>{STYLE_PAGES[2].name}</a> for cartoons with the
+            volume up, and <a href={STYLE_PAGES[3].path}>{STYLE_PAGES[3].name}</a> for an honest look at what an old
+            tattoo can become.
+          </p>
+          <ul class="subjects" role="list" aria-label="Subjects that show up in the portfolio">
+            {subjects.map((sub) => <li class="subjects__item">{sub}</li>)}
+          </ul>
+        </section>
+
+        <section class="about-q" aria-labelledby="q-project">
+          <h2 id="q-project">What does Chris look for in a project?</h2>
+          <p class="answer">
+            An idea with a little personality and a client who's open to his take on it. Bring the subject, the
+            placement, references and a rough size; he draws the piece for you, at your size, and combines
+            elements where it helps. Cover-ups and large pieces get an in-person look first. Half-formed ideas are
+            welcome.
+          </p>
+          <div class="bring">
+            <div class="bring__col">
+              <p class="bring__h"><span class="sheet-no">Helpful</span></p>
+              <ul class="bring__list">
+                <li>The subject, and what it means to you</li>
+                <li>Where it goes, with a photo of the spot if you have one</li>
+                <li>References: photos, sketches, other tattoos with the feel you're after</li>
+                <li>The largest size you'd be comfortable with</li>
+                <li>Your budget range and any date you're working toward</li>
+              </ul>
+            </div>
+            <div class="bring__col">
+              <p class="bring__h"><span class="sheet-no">Not needed</span></p>
+              <ul class="bring__list">
+                <li>A finished drawing; that's his job</li>
+                <li>Another artist's tattoo to copy line for line</li>
+                <li>A decision on every detail before you've talked</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="about-q" aria-labelledby="q-where">
+          <h2 id="q-where">Where does Chris tattoo?</h2>
+          <p class="answer">
+            At {s.name}, {s.streetAddress}, {s.addressLocality}, {s.addressRegion} {s.postalCode}, on Route 2 near
+            the end of Route 10, about ten minutes from downtown Providence. The shop is open Monday through
+            Saturday, by appointment only, so every session starts with a booking request. Call {s.telephoneDisplay}
+            with questions, or send the form.
+          </p>
+          <p>
+            Directions and parking notes for each nearby city are on the location pages:
+            {
+              LOCATION_PAGES.map((l, i) => (
+                <>
+                  <a href={l.path}>{l.name}</a>{i < LOCATION_PAGES.length - 2 ? ', ' : i === LOCATION_PAGES.length - 2 ? ' and ' : '.'}
+                </>
+              ))
+            }
+          </p>
+        </section>
+      </div>
+
+      <aside class="about-body__aside">
+        <div class="sheet sheet--paper-2 reg-marks glance">
+          <span class="sheet-no sheet__no">At a glance</span>
+          <dl class="glance__list">
+            <div class="glance__row">
+              <dt>Based at</dt>
+              <dd>
+                <a href={s.url} rel="noopener">{s.name}</a><br />
+                <a href={directions} rel="noopener">{s.streetAddress}, {s.addressLocality}, {s.addressRegion} {s.postalCode}</a>
+              </dd>
+            </div>
+            <div class="glance__row">
+              <dt>Sessions</dt>
+              <dd>{dayRange}, {s.hoursNote.toLowerCase()}</dd>
+            </div>
+            <div class="glance__row">
+              <dt>Prefers</dt>
+              <dd>Illustrative, neo-traditional, new-school</dd>
+            </div>
+            <div class="glance__row">
+              <dt>Works</dt>
+              <dd>All styles, color and black and grey, cover-ups by assessment</dd>
+            </div>
+            <div class="glance__row">
+              <dt>Phone</dt>
+              <dd><a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a></dd>
+            </div>
+            <div class="glance__row">
+              <dt>Instagram</dt>
+              <dd><a href={artist.instagram} rel="me noopener">{artist.instagramHandle}</a></dd>
+            </div>
+            <div class="glance__row">
+              <dt>Booking</dt>
+              <dd><a href="/book/">Request a booking</a></dd>
+            </div>
+          </dl>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section container" aria-labelledby="video-h">
+    <header class="sec-head">
+      <p class="eyebrow"><span class="sheet-no">No. 03</span> Video</p>
+      <h2 id="video-h">Chris, on video</h2>
+      <p class="muted">
+        A short introduction, hosted on YouTube. Nothing loads from YouTube until you press play.
+      </p>
+    </header>
+    <div class="about-video reveal">
+      <VideoEmbed
+        id="about-video"
+        sheetNo="Video"
+        poster={{ src: poster.file, width: poster.width, height: poster.height }}
+        posterPosition="center 40%"
+      />
+    </div>
+  </section>
+
+  <Cta
+    sheetNo="No. 03"
+    heading="Bring him the idea."
+    body="Send it through the booking form with the placement and any references. Chris replies by email; a deposit holds your date once the details are set, and the amount is confirmed when you book."
+  />
+</Base>
+
+<style>
+  .about-hero__grid {
+    display: grid;
+    gap: var(--space-xl);
+    align-items: center;
+  }
+
+  .about-hero__copy {
+    max-width: 60rem;
+  }
+
+  .about-hero__photo {
+    width: 100%;
+    max-width: 34rem;
+    justify-self: center;
+  }
+
+  @media (min-width: 900px) {
+    .about-hero__grid {
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    }
+
+    .about-hero__photo {
+      justify-self: end;
+    }
+  }
+
+  .about-body__grid {
+    display: grid;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  .about-body__main {
+    display: grid;
+    gap: var(--space-xl);
+    max-width: 64rem;
+  }
+
+  .about-q {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  .about-q h2 {
+    max-width: 22ch;
+  }
+
+  .about-q > p:not(.answer) {
+    max-width: 62ch;
+    color: var(--ink-2);
+  }
+
+  @media (min-width: 960px) {
+    .about-body__grid {
+      grid-template-columns: minmax(0, 1.5fr) minmax(17rem, 1fr);
+    }
+
+    .about-body__aside {
+      position: sticky;
+      top: calc(var(--header-h) + var(--space-m));
+    }
+  }
+
+  /* Three-stop journey */
+  .journey {
+    position: relative;
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-width: 62ch;
+  }
+
+  .journey::before {
+    content: '';
+    position: absolute;
+    top: 16px;
+    bottom: 16px;
+    left: 7px;
+    width: 2px;
+    background: var(--ink);
+  }
+
+  .journey__stop {
+    position: relative;
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.5rem 0 0.5rem 2rem;
+  }
+
+  .journey__stop::before {
+    content: '';
+    position: absolute;
+    top: 0.85rem;
+    left: 0;
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    border: 2.5px solid var(--ink);
+    border-radius: 50%;
+    background: var(--paper);
+  }
+
+  .journey__stop:last-child::before {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .journey__no {
+    font-size: var(--step--1);
+  }
+
+  .journey__place {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-1);
+    line-height: 1.1;
+  }
+
+  .journey__note {
+    color: var(--ink-2);
+  }
+
+  /* Subject chips (static, not buttons) */
+  .subjects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .subjects__item {
+    padding: 0.45em 0.9em;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    background: var(--paper-3);
+  }
+
+  /* Helpful / not needed */
+  .bring {
+    display: grid;
+    gap: var(--space-m);
+    max-width: 62ch;
+  }
+
+  .bring__h {
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.6rem;
+    border-bottom: 1.5px solid var(--ink);
+  }
+
+  .bring__list {
+    padding-left: 1.2em;
+    margin: 0;
+  }
+
+  .bring__list li + li {
+    margin-top: 0.35em;
+  }
+
+  .bring__list li::marker {
+    color: var(--accent-ink);
+  }
+
+  @media (min-width: 640px) {
+    .bring {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* At a glance */
+  .glance__list {
+    display: grid;
+    gap: 0;
+  }
+
+  .glance__row {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .glance__row:last-child {
+    border-bottom: 0;
+  }
+
+  .glance__row dt {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .glance__row dd {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-0);
+    line-height: 1.4;
+  }
+
+  .glance__row a {
+    display: inline-block;
+    padding-block: 0.2em;
+    text-decoration-color: transparent;
+  }
+
+  .glance__row a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .sec-head {
+    display: grid;
+    gap: var(--space-s);
+    max-width: 60rem;
+    margin-bottom: var(--space-l);
+  }
+
+  .about-video {
+    max-width: 52rem;
+  }
+</style>

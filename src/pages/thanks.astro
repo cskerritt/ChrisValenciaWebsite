@@ -1,0 +1,219 @@
+---
+/**
+ * /thanks/ — where the booking form lands after a successful submit (both the
+ * fetch path and the no-JS 303). Noindex. Says what happens next without
+ * promising a response time, and repeats the fallbacks (email, phone).
+ */
+import Base from '../layouts/Base.astro';
+import shop from '../data/shop.json';
+
+const { shop: s, artist } = shop;
+
+const title = 'Request Received | Chris Valencia Tattoo';
+const description =
+  'Your booking request is on its way to Chris Valencia at Powerline Tattoo in Cranston, RI. Here is what happens next and what to read while you wait.';
+
+const next = [
+  {
+    name: 'A reply by email',
+    text: 'Chris reads the request and replies with questions, a rough sense of size and sessions, and how the consultation will work.',
+  },
+  {
+    name: 'The design',
+    text: 'For custom work that usually means a consultation first, then the drawing, made for your placement at your size.',
+  },
+  {
+    name: 'The deposit',
+    text: 'A deposit holds your appointment date. The amount and the terms are confirmed when you book.',
+  },
+  {
+    name: 'The session',
+    text: 'Eat first, drink water, sleep, skip alcohol for twenty-four hours and bring a government ID.',
+  },
+];
+
+const dayRange = `${s.days[0].slice(0, 3)}–${s.days[s.days.length - 1].slice(0, 3)}`;
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<Base title={title} description={description} canonicalPath="/thanks/" noindex bodyClass="page-thanks">
+  <section class="section container thanks">
+    <div class="thanks__grid">
+      <div class="thanks__main">
+        <p class="eyebrow"><span class="sheet-no">Received</span> Booking request</p>
+        <h1>Thanks, your request is in.</h1>
+        <p class="answer">
+          Your booking request is on its way to Chris Valencia at {s.name}. He replies by email, so keep an eye on
+          your inbox and your spam folder. The reply talks through the idea, placement and timing, sets up a
+          consultation if the piece needs one, and explains the deposit that holds your date.
+        </p>
+
+        <ol class="next" role="list" aria-label="What happens next">
+          {
+            next.map((step, i) => (
+              <li class="next__step">
+                <span class="next__no sheet-no" aria-hidden="true">{pad(i + 1)}</span>
+                <div>
+                  <p class="next__name">{step.name}</p>
+                  <p class="next__text">{step.text}</p>
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+
+        <div class="thanks__fix">
+          <p class="thanks__fix-h">Forgot a reference, or want to add a detail?</p>
+          <p>
+            Email <a href={`mailto:${s.email}`}>{s.email}</a> with your name, or send a second request; it all
+            lands in the same inbox. If you haven't heard back after a few days, check your spam folder, then
+            call <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a>.
+          </p>
+        </div>
+      </div>
+
+      <aside class="thanks__aside">
+        <div class="sheet sheet--paper-2 reg-marks thanks__wait">
+          <span class="sheet-no sheet__no">While you wait</span>
+          <ul class="thanks__links" role="list">
+            <li><a href="/pricing/">How quoting works</a><span>Size, placement, detail, color, sessions.</span></li>
+            <li><a href="/faq/#how-should-i-prepare">How to prepare</a><span>Eat, hydrate, sleep, no alcohol.</span></li>
+            <li><a href="/aftercare/">Aftercare</a><span>Read it once now, once after.</span></li>
+            <li><a href="/portfolio/">Portfolio</a><span>Every piece, with a number.</span></li>
+            <li><a href={artist.instagram} rel="me noopener">{artist.instagramHandle} on Instagram</a><span>New work, as it happens.</span></li>
+          </ul>
+        </div>
+        <p class="thanks__nap small muted">
+          {s.name}, {s.streetAddress}, {s.addressLocality}, {s.addressRegion} {s.postalCode}. {dayRange},
+          {s.hoursNote.toLowerCase()}.
+        </p>
+        <span class="stamp thanks__stamp" aria-hidden="true">Received</span>
+      </aside>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .thanks__grid {
+    display: grid;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  .thanks__main {
+    display: grid;
+    gap: var(--space-m);
+    max-width: 60rem;
+  }
+
+  .thanks__main h1 {
+    max-width: 14ch;
+  }
+
+  @media (min-width: 900px) {
+    .thanks__grid {
+      grid-template-columns: minmax(0, 1.5fr) minmax(17rem, 1fr);
+    }
+  }
+
+  .next {
+    display: grid;
+    margin: var(--space-s) 0 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--ink);
+    background: var(--paper-3);
+    max-width: 62ch;
+  }
+
+  .next__step {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    gap: var(--space-s);
+    padding: var(--space-s) var(--space-m);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .next__step:last-child {
+    border-bottom: 0;
+  }
+
+  .next__no {
+    padding-top: 0.35em;
+  }
+
+  .next__name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-1);
+    line-height: 1.1;
+  }
+
+  .next__text {
+    margin-top: 0.2rem;
+    color: var(--ink-2);
+  }
+
+  .thanks__fix {
+    max-width: 62ch;
+    padding: var(--space-s) var(--space-m);
+    border-left: 3px solid var(--accent);
+    background: var(--paper-2);
+  }
+
+  .thanks__fix-h {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: var(--step-1);
+    margin-bottom: 0.3rem;
+  }
+
+  .thanks__aside {
+    position: relative;
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  .thanks__links {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .thanks__links li {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .thanks__links li:last-child {
+    border-bottom: 0;
+  }
+
+  .thanks__links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    width: fit-content;
+    font-weight: 600;
+  }
+
+  .thanks__links span {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .thanks__stamp {
+    position: absolute;
+    top: -1.1rem;
+    right: 0.5rem;
+    background: var(--paper);
+    transform: rotate(5deg);
+  }
+</style>

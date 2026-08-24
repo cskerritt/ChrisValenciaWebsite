@@ -1,26 +1,47 @@
 ---
 /**
- * Booking request form. Posts multipart/form-data to POST /api/book.
+ * BookingForm: the site's one conversion point. Posts multipart/form-data to
+ * POST /api/book and matches server/book.js exactly.
  *
- * Contract (must match server/book.js): name, email, phone?, idea, placement,
- * size, budget, timing, consent="on", honeypot `website` (must stay empty),
- * files under `references` (≤ 5 images, ≤ 8 MB each), and, only when the
- * site is built with PUBLIC_TURNSTILE_SITE_KEY, a `cf-turnstile-response`.
+ *   text      name, email, phone (optional), idea, placement, size, budget,
+ *             timing, consent="on"
+ *   honeypot  website  (hidden from people and assistive tech; must stay empty)
+ *   files     references  (up to 5 images, 8 MB each)
+ *   turnstile cf-turnstile-response  (only when built with
+ *             PUBLIC_TURNSTILE_SITE_KEY; the widget injects the hidden input)
  *
- * Works without JavaScript: a plain POST gets a 303 to /thanks/ from the
- * server. With JavaScript the submit is a fetch, the button shows progress,
- * server field errors land on the matching inputs, and any failure shows an
- * inline alert with the phone and Instagram fallbacks.
+ *   JSON clients (Accept: application/json):
+ *     200 {ok:true} · 400 {ok:false,message,errors} · 413/429/502/503 {ok:false,message}
+ *   Browser form posts (the no-JS fallback):
+ *     303 → /thanks/ on success · an HTML notice with the same status codes on error
  *
- * The budget ranges are what the client has in mind, not a price list; every
- * piece is quoted at the consultation.
+ * Without JavaScript this is a plain form post with the browser's own
+ * validation: there is no `novalidate` in the markup, the script sets it.
+ * With JavaScript the submit goes over XMLHttpRequest so uploads get a real
+ * progress bar, server field errors land on the matching inputs, the
+ * reference picker takes drag-and-drop and paste with thumbnails and per-file
+ * removal, the text you typed survives an accidental reload (sessionStorage,
+ * cleared on success), and any failure shows an inline alert with the shop
+ * phone and Instagram as fallbacks.
+ *
+ * Budget ranges are what the client has in mind, not a price list; every
+ * piece is quoted at the consultation. Option labels mirror SIZES / BUDGETS /
+ * TIMINGS in server/book.js so the email Chris receives says exactly what the
+ * client picked.
  */
 import shop from '../data/shop.json';
 
 const { shop: s, artist } = shop;
 const turnstileSiteKey = (import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '').trim();
 
-const SIZES = [
+const MAX_FILES = 5;
+const MAX_FILE_MB = 8;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+const IDEA_MIN = 10;
+const IDEA_MAX = 2000;
+
+/* Keep in sync with server/book.js (its unit test pins these keys). */
+const SIZES: ReadonlyArray<readonly [string, string]> = [
   ['palm', 'Palm-sized'],
   ['hand', 'Hand-sized'],
   ['half-sleeve', 'Half sleeve'],
@@ -28,14 +49,14 @@ const SIZES = [
   ['back', 'Back piece'],
   ['other', 'Other / not sure yet'],
 ];
-const BUDGETS = [
+const BUDGETS: ReadonlyArray<readonly [string, string]> = [
   ['under-300', 'Under $300'],
   ['300-600', '$300 to $600'],
   ['600-1200', '$600 to $1,200'],
   ['1200-plus', '$1,200 or more'],
   ['unsure', 'Not sure yet'],
 ];
-const TIMINGS = [
+const TIMINGS: ReadonlyArray<readonly [string, string]> = [
   ['asap', 'As soon as possible'],
   ['1-3-months', 'In the next 1 to 3 months'],
   ['3-plus-months', '3 or more months out'],
@@ -44,60 +65,94 @@ const TIMINGS = [
 ---
 
 <form
-  class="booking sheet"
+  class="booking sheet reg-marks"
   id="booking-form"
   action="/api/book"
   method="post"
   enctype="multipart/form-data"
-  novalidate
+  aria-labelledby="booking-legend"
   data-booking-form
+  data-max-files={MAX_FILES}
+  data-max-bytes={MAX_FILE_BYTES}
   data-tel={s.telephone}
   data-tel-display={s.telephoneDisplay}
   data-instagram={artist.instagram}
   data-instagram-handle={artist.instagramHandle}
 >
-  <span class="sheet-no sheet__no">Booking request</span>
+  <span class="sheet-no sheet__no" id="booking-legend">Booking request</span>
+  <p class="booking__key" aria-hidden="true"><span class="booking__req">*</span> required</p>
 
-  <p class="booking__status" role="alert" aria-live="assertive" data-booking-status hidden></p>
+  <div class="booking__status" role="alert" data-booking-status hidden></div>
 
   <fieldset class="booking__group">
     <legend class="booking__legend"><span class="sheet-no">No. 01</span> About you</legend>
-    <div class="grid grid--2">
+    <div class="booking__fields grid grid--2">
       <div class="field">
         <label for="bk-name">Name <span class="booking__req" aria-hidden="true">*</span></label>
-        <input id="bk-name" name="name" type="text" required maxlength="80" autocomplete="name" />
+        <input id="bk-name" name="name" type="text" required maxlength="80" autocomplete="name" autocapitalize="words" />
         <p class="field__error" id="bk-name-err" data-error-for="name" hidden></p>
       </div>
       <div class="field">
         <label for="bk-email">Email <span class="booking__req" aria-hidden="true">*</span></label>
-        <input id="bk-email" name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email" />
-        <p class="field__hint">Chris replies by email, so double-check it.</p>
+        <input
+          id="bk-email"
+          name="email"
+          type="email"
+          required
+          maxlength="254"
+          autocomplete="email"
+          inputmode="email"
+          spellcheck="false"
+          aria-describedby="bk-email-hint"
+        />
+        <p class="field__hint" id="bk-email-hint">Chris replies by email, so double-check it.</p>
         <p class="field__error" id="bk-email-err" data-error-for="email" hidden></p>
       </div>
       <div class="field">
-        <label for="bk-phone">Phone <span class="muted">(optional)</span></label>
+        <label for="bk-phone">Phone <span class="booking__optional">(optional)</span></label>
         <input id="bk-phone" name="phone" type="tel" maxlength="30" autocomplete="tel" inputmode="tel" />
         <p class="field__error" id="bk-phone-err" data-error-for="phone" hidden></p>
       </div>
     </div>
   </fieldset>
 
+  <hr class="rule-hand rule-hand--tight" aria-hidden="true" />
+
   <fieldset class="booking__group">
     <legend class="booking__legend"><span class="sheet-no">No. 02</span> The tattoo</legend>
-    <div class="stack">
+    <div class="booking__fields stack">
       <div class="field">
         <label for="bk-idea">Your idea <span class="booking__req" aria-hidden="true">*</span></label>
-        <textarea id="bk-idea" name="idea" required minlength="10" maxlength="2000" rows="6"></textarea>
-        <p class="field__hint">
-          Subject, mood, color or black and grey, anything you already know you want or don't want. A
-          sentence or two is plenty.
-        </p>
+        <textarea
+          id="bk-idea"
+          name="idea"
+          required
+          minlength={IDEA_MIN}
+          maxlength={IDEA_MAX}
+          rows="6"
+          aria-describedby="bk-idea-hint"
+          data-booking-idea></textarea>
+        <div class="booking__hint-row">
+          <p class="field__hint" id="bk-idea-hint">
+            Subject, mood, color or black and grey, anything you already know you want or don't want. A sentence or
+            two is plenty; paste an image here and it attaches itself.
+          </p>
+          <p class="booking__count js-only" data-booking-count aria-hidden="true">0 / {IDEA_MAX.toLocaleString('en-US')}</p>
+        </div>
         <p class="field__error" id="bk-idea-err" data-error-for="idea" hidden></p>
       </div>
       <div class="grid grid--2">
         <div class="field">
           <label for="bk-placement">Placement <span class="booking__req" aria-hidden="true">*</span></label>
-          <input id="bk-placement" name="placement" type="text" required maxlength="80" placeholder="Outer forearm, calf, upper back…" />
+          <input
+            id="bk-placement"
+            name="placement"
+            type="text"
+            required
+            maxlength="80"
+            autocomplete="off"
+            placeholder="Outer forearm, calf, upper back…"
+          />
           <p class="field__error" id="bk-placement-err" data-error-for="placement" hidden></p>
         </div>
         <div class="field">
@@ -110,11 +165,11 @@ const TIMINGS = [
         </div>
         <div class="field">
           <label for="bk-budget">Budget you have in mind <span class="booking__req" aria-hidden="true">*</span></label>
-          <select id="bk-budget" name="budget" required>
+          <select id="bk-budget" name="budget" required aria-describedby="bk-budget-hint">
             <option value="">Choose one</option>
             {BUDGETS.map(([v, l]) => <option value={v}>{l}</option>)}
           </select>
-          <p class="field__hint">Not a price list. Chris quotes every piece at the consultation.</p>
+          <p class="field__hint" id="bk-budget-hint">Not a price list. Chris quotes every piece at the consultation.</p>
           <p class="field__error" id="bk-budget-err" data-error-for="budget" hidden></p>
         </div>
         <div class="field">
@@ -129,14 +184,42 @@ const TIMINGS = [
     </div>
   </fieldset>
 
+  <hr class="rule-hand rule-hand--tight" aria-hidden="true" />
+
   <fieldset class="booking__group">
     <legend class="booking__legend"><span class="sheet-no">No. 03</span> References</legend>
-    <div class="field">
-      <label for="bk-files">Reference images <span class="muted">(optional)</span></label>
-      <input id="bk-files" name="references" type="file" accept="image/*" multiple data-booking-files />
-      <p class="field__hint">Up to 5 images, 8 MB each. Photos of the spot, sketches, other tattoos you like.</p>
+    <div class="booking__fields field">
+      <label for="bk-files">Reference images <span class="booking__optional">(optional)</span></label>
+      <div class="dropzone" data-dropzone>
+        <svg class="dropzone__icon" viewBox="0 0 48 48" width="40" height="40" aria-hidden="true" focusable="false">
+          <rect x="5.5" y="9.5" width="37" height="29" fill="none" stroke="currentColor" stroke-width="1.6" />
+          <path d="M10 33l9-10 7 8 5-5 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+          <circle cx="32" cy="17" r="3" fill="none" stroke="currentColor" stroke-width="1.6" />
+          <path d="M24 3v6M21 6l3-3 3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <p class="dropzone__text">
+          <span class="js-only">Drag photos here, or</span>
+          <span class="no-js-only">Choose up to {MAX_FILES} images:</span>
+        </p>
+        <input
+          id="bk-files"
+          class="dropzone__input"
+          name="references"
+          type="file"
+          accept="image/*"
+          multiple
+          aria-describedby="bk-files-hint"
+          data-booking-files
+        />
+        <button class="btn btn--sm dropzone__pick js-only" type="button" data-booking-pick>Choose images</button>
+        <p class="dropzone__note js-only" data-booking-file-summary>No images attached yet.</p>
+      </div>
+      <p class="field__hint" id="bk-files-hint">
+        Up to {MAX_FILES} images, {MAX_FILE_MB} MB each. Photos of the spot, sketches, other tattoos you like, the old
+        tattoo if it's a cover-up.
+      </p>
       <p class="field__error" id="bk-files-err" data-error-for="references" hidden></p>
-      <ul class="booking__files" role="list" data-booking-file-list hidden></ul>
+      <ul class="booking__thumbs" role="list" aria-label="Attached images" data-booking-file-list hidden></ul>
     </div>
   </fieldset>
 
@@ -149,7 +232,7 @@ const TIMINGS = [
     <p class="field__error booking__consent-err" id="bk-consent-err" data-error-for="consent" hidden></p>
   </div>
 
-  {/* Honeypot: hidden from people and assistive tech; bots that fill it are dropped silently. */}
+  {/* Honeypot: off-screen and hidden from assistive tech. Bots that fill it are dropped silently. */}
   <div class="booking__hp" aria-hidden="true">
     <label for="bk-website">Website</label>
     <input id="bk-website" name="website" type="text" tabindex="-1" autocomplete="off" />
@@ -158,17 +241,42 @@ const TIMINGS = [
   {
     turnstileSiteKey && (
       <div class="booking__turnstile">
-        <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="auto" />
+        <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="auto" data-size="flexible" />
+        <noscript>
+          <p class="field__hint">
+            The anti-spam check needs JavaScript. Turn it on to send the form, or call the shop at{' '}
+            <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a>.
+          </p>
+        </noscript>
       </div>
     )
   }
 
+  <div class="booking__progress" data-booking-progress hidden>
+    <div
+      class="booking__bar"
+      role="progressbar"
+      aria-label="Upload progress"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
+      data-booking-progress-bar
+    >
+      <div class="booking__bar-fill" data-booking-progress-fill></div>
+    </div>
+    <p class="booking__progress-text" aria-live="polite" data-booking-progress-text></p>
+  </div>
+
   <div class="booking__actions">
     <button class="btn btn--primary booking__submit" type="submit" data-booking-submit>
       <span data-booking-submit-label>Send booking request</span>
+      <svg class="booking__arrow" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+        <path d="M3 10h13M11 5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
     </button>
-    <p class="booking__fallback muted small">
-      Rather talk? Call {s.name} at <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a> or message
+    <p class="booking__fine small">
+      Your request goes by email to Chris at {s.name}; nothing is stored on this site. Rather talk? Call
+      <a href={`tel:${s.telephone}`}>{s.telephoneDisplay}</a> or message
       <a href={artist.instagram} rel="me noopener">{artist.instagramHandle}</a> on Instagram.
     </p>
   </div>
@@ -182,10 +290,30 @@ const TIMINGS = [
     display: grid;
     gap: var(--space-l);
     background: var(--paper-3);
+    padding-top: var(--space-xl);
   }
 
   .booking .sheet__no {
     background: var(--paper-3);
+  }
+
+  .booking > .rule-hand {
+    margin: 0;
+    color: var(--rule-2);
+  }
+
+  .booking__key {
+    position: absolute;
+    top: 0;
+    right: var(--gutter);
+    transform: translateY(-50%);
+    padding: 0 0.5em;
+    background: var(--paper-3);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    line-height: 1;
   }
 
   .booking__group {
@@ -200,7 +328,7 @@ const TIMINGS = [
     align-items: baseline;
     gap: 0.6em;
     padding: 0;
-    margin-bottom: var(--space-s);
+    margin-bottom: var(--space-m);
     font-family: var(--font-display);
     font-weight: 700;
     font-size: var(--step-2);
@@ -208,14 +336,190 @@ const TIMINGS = [
     line-height: 1.05;
   }
 
-  .booking__legend + * {
-    padding-top: var(--space-s);
-    border-top: 1px solid var(--rule);
+  .booking__fields {
+    min-width: 0;
   }
 
   .booking__req {
     color: var(--accent-ink);
     font-weight: 700;
+  }
+
+  .booking__optional {
+    font-weight: 400;
+    color: var(--ink-2);
+  }
+
+  .booking__hint-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-s);
+  }
+
+  .booking__count {
+    flex: 0 0 auto;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .booking__count.is-near {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  /* Reference picker */
+  .dropzone {
+    position: relative;
+    display: grid;
+    gap: var(--space-xs);
+    justify-items: center;
+    text-align: center;
+    padding: var(--space-m) var(--space-s);
+    border: 1.5px dashed var(--rule-2);
+    background: var(--paper-2);
+    transition: border-color 0.15s, background-color 0.15s;
+  }
+
+  html.js .dropzone {
+    cursor: pointer;
+  }
+
+  html.js .dropzone:hover,
+  .dropzone.is-dragover {
+    border-color: var(--accent-ink);
+    background: var(--accent-soft);
+  }
+
+  .dropzone.is-dragover {
+    border-style: solid;
+  }
+
+  .dropzone__icon {
+    color: var(--ink-2);
+  }
+
+  .dropzone__text {
+    font-weight: 500;
+  }
+
+  .dropzone__input {
+    max-width: 100%;
+  }
+
+  html.js .dropzone__input {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+
+  .dropzone__pick {
+    cursor: pointer;
+  }
+
+  .dropzone__note {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .booking__thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    gap: var(--space-s);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .booking__thumb {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.4rem;
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    min-width: 0;
+  }
+
+  .booking__thumb.is-bad {
+    border-color: var(--accent-ink);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .booking__thumb-img,
+  .booking__thumb-ph {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--rule);
+    background: var(--paper-2);
+  }
+
+  .booking__thumb-img {
+    object-fit: cover;
+  }
+
+  .booking__thumb-ph {
+    display: grid;
+    place-items: center;
+    border-style: dashed;
+    border-color: var(--rule-2);
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .booking__thumb-name {
+    font-size: var(--step--1);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .booking__thumb-meta {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .booking__thumb.is-bad .booking__thumb-meta {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  .booking__thumb-remove {
+    justify-self: start;
+    min-height: var(--tap);
+    padding: 0 0.2rem;
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 0.18em;
+    transition: text-decoration-color 0.15s;
+  }
+
+  .booking__thumb-remove:hover {
+    text-decoration-color: currentColor;
   }
 
   .booking__consent {
@@ -241,36 +545,46 @@ const TIMINGS = [
     overflow: hidden;
   }
 
-  .booking__files {
-    margin: 0.25rem 0 0;
-    padding: 0;
-    list-style: none;
+  .booking__turnstile {
+    min-height: 65px;
+  }
+
+  .booking__progress {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .booking__bar {
+    height: 12px;
+    border: 1.5px solid var(--ink);
+    background: var(--paper-2);
+  }
+
+  .booking__bar-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent-fill);
+    transition: width 0.2s linear;
+  }
+
+  .booking__progress-text {
+    font-family: var(--font-serif);
+    font-style: italic;
     font-size: var(--step--1);
-  }
-
-  .booking__files li {
-    display: flex;
-    justify-content: space-between;
-    gap: 1em;
-    padding: 0.35em 0;
-    border-bottom: 1px dotted var(--rule-2);
-  }
-
-  .booking__files .is-bad {
-    color: var(--accent-ink);
-    font-weight: 600;
+    color: var(--ink-2);
+    min-height: 1.4em;
   }
 
   .booking__actions {
     display: grid;
     gap: var(--space-s);
-    padding-top: var(--space-s);
+    padding-top: var(--space-m);
     border-top: 1.5px solid var(--ink);
   }
 
   .booking__submit {
     justify-self: start;
-    min-width: 16rem;
+    min-width: 17rem;
   }
 
   .booking__submit[aria-busy='true'] {
@@ -281,6 +595,23 @@ const TIMINGS = [
     content: '…';
   }
 
+  .booking__submit[aria-busy='true'] .booking__arrow {
+    display: none;
+  }
+
+  .booking__submit:hover .booking__arrow {
+    transform: translateX(3px);
+  }
+
+  .booking__arrow {
+    transition: transform 0.15s var(--ease-out);
+  }
+
+  .booking__fine {
+    color: var(--ink-2);
+    max-width: 60ch;
+  }
+
   .booking__status {
     padding: var(--space-s) var(--space-m);
     border: 1.5px solid var(--accent-ink);
@@ -289,19 +620,33 @@ const TIMINGS = [
     font-weight: 500;
   }
 
+  .booking__status p + p {
+    margin-top: 0.4em;
+    font-weight: 400;
+  }
+
   .booking__status--ok {
     border-color: var(--sage-ink);
     background: var(--sage-soft);
   }
 
-  .booking__turnstile {
-    min-height: 65px;
-  }
-
   @media (max-width: 599.98px) {
+    .booking {
+      padding-inline: var(--space-s);
+    }
+
+    .booking__key {
+      right: var(--space-s);
+    }
+
     .booking__submit {
       justify-self: stretch;
       min-width: 0;
+    }
+
+    .booking__hint-row {
+      flex-direction: column;
+      gap: 0.25rem;
     }
   }
 </style>
@@ -310,187 +655,615 @@ const TIMINGS = [
   const form = document.querySelector<HTMLFormElement>('[data-booking-form]');
 
   if (form) {
-    const status = form.querySelector<HTMLElement>('[data-booking-status]')!;
-    const submit = form.querySelector<HTMLButtonElement>('[data-booking-submit]')!;
-    const label = submit.querySelector<HTMLElement>('[data-booking-submit-label]')!;
-    const fileInput = form.querySelector<HTMLInputElement>('[data-booking-files]');
-    const fileList = form.querySelector<HTMLElement>('[data-booking-file-list]');
-    const idleLabel = label.textContent || 'Send booking request';
+    // JavaScript owns validation from here; without it the browser's own checks run.
+    form.noValidate = true;
 
-    const MAX_FILES = 5;
-    const MAX_BYTES = 8 * 1024 * 1024;
+    type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+    const pick = <T extends Element>(sel: string) => form.querySelector<T>(sel);
+    const status = pick<HTMLElement>('[data-booking-status]')!;
+    const submit = pick<HTMLButtonElement>('[data-booking-submit]')!;
+    const submitLabel = pick<HTMLElement>('[data-booking-submit-label]')!;
+    const progress = pick<HTMLElement>('[data-booking-progress]');
+    const progressBar = pick<HTMLElement>('[data-booking-progress-bar]');
+    const progressFill = pick<HTMLElement>('[data-booking-progress-fill]');
+    const progressText = pick<HTMLElement>('[data-booking-progress-text]');
+    const fileInput = pick<HTMLInputElement>('[data-booking-files]');
+    const dropzone = pick<HTMLElement>('[data-dropzone]');
+    const pickButton = pick<HTMLButtonElement>('[data-booking-pick]');
+    const fileList = pick<HTMLElement>('[data-booking-file-list]');
+    const fileSummary = pick<HTMLElement>('[data-booking-file-summary]');
+    const ideaField = pick<HTMLTextAreaElement>('[data-booking-idea]');
+    const ideaCount = pick<HTMLElement>('[data-booking-count]');
+
+    const idleLabel = submitLabel.textContent || 'Send booking request';
+    const MAX_FILES = Number(form.dataset.maxFiles) || 5;
+    const MAX_BYTES = Number(form.dataset.maxBytes) || 8 * 1024 * 1024;
+    const IDEA_MIN = Number(ideaField?.getAttribute('minlength')) || 10;
+    const IDEA_MAX = Number(ideaField?.getAttribute('maxlength')) || 2000;
+    const DRAFT_KEY = 'cvt-booking-draft';
+    const DRAFT_FIELDS = ['name', 'email', 'phone', 'idea', 'placement', 'size', 'budget', 'timing'];
     const tel = form.dataset.tel || '';
     const telDisplay = form.dataset.telDisplay || tel;
-    const ig = form.dataset.instagram || '';
-    const igHandle = form.dataset.instagramHandle || 'Instagram';
+    const instagram = form.dataset.instagram || '';
+    const instagramHandle = form.dataset.instagramHandle || 'Instagram';
 
-    const fallbackHtml = () =>
-      ` You can also call <a href="tel:${tel}">${telDisplay}</a> or message <a href="${ig}" rel="me noopener">${igHandle}</a> on Instagram.`;
+    // Mirrors the zod messages in server/book.js so online and offline validation read the same.
+    const REQUIRED: Record<string, string> = {
+      name: 'Please tell us your name.',
+      email: 'Enter a valid email address so Chris can reply.',
+      idea: 'Tell Chris a little about the tattoo you have in mind.',
+      placement: 'Where on the body would the tattoo go?',
+      size: 'Choose an approximate size.',
+      budget: 'Choose a budget range.',
+      timing: 'Choose a rough timeline.',
+      consent: 'Please confirm the consent checkbox before sending.',
+    };
+    const EMAIL_INVALID = REQUIRED.email;
+    const IDEA_TOO_SHORT = `Describe your idea in at least a sentence (${IDEA_MIN} or more characters).`;
+    const INVALID_FORM = 'Please check the highlighted fields and try again.';
+    const RATE_LIMITED = 'Too many requests from your connection. Please wait 15 minutes and try again, or call the shop.';
+    const TOO_LARGE = 'That submission is too large. Attach fewer or smaller images and try again.';
+    const SEND_FAILED =
+      'We could not send your request just now. Nothing you typed was lost: please try again in a minute, or reach the shop by phone or Instagram.';
+    const OFFLINE = 'We could not reach the server. Check your connection and try again.';
+    const TIMED_OUT = 'The upload took too long. Try again with smaller images, or send the request without attachments.';
+    const TURNSTILE_WAIT = 'The anti-spam check is still loading. Give it a second and press send again.';
 
-    const escape = (s: string) =>
-      s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
+    const fmt = (n: number) =>
+      n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 
-    const clearErrors = () => {
-      form.querySelectorAll<HTMLElement>('[data-error-for]').forEach((el) => {
-        el.textContent = '';
-        el.hidden = true;
-      });
-      form.querySelectorAll<HTMLElement>('[aria-invalid="true"]').forEach((el) => {
-        el.removeAttribute('aria-invalid');
-        const described = (el.getAttribute('aria-describedby') || '')
-          .split(' ')
-          .filter((id) => id && !id.endsWith('-err'))
-          .join(' ');
-        if (described) el.setAttribute('aria-describedby', described);
-        else el.removeAttribute('aria-describedby');
+    const isField = (el: Element): el is Field =>
+      (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) &&
+      !!el.name &&
+      el.name !== 'website' &&
+      el.type !== 'hidden' &&
+      el.type !== 'file';
+
+    const fields = (): Field[] => Array.from(form.elements).filter(isField);
+    const fieldByName = (name: string): Field | null => {
+      const el = form.elements.namedItem(name);
+      return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
+        ? el
+        : null;
+    };
+
+    /* ---------- field errors ---------- */
+
+    const errorSlot = (name: string) => form.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
+
+    const describe = (el: Element, id: string, add: boolean) => {
+      const ids = new Set((el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+      if (add) ids.add(id);
+      else ids.delete(id);
+      if (ids.size) el.setAttribute('aria-describedby', Array.from(ids).join(' '));
+      else el.removeAttribute('aria-describedby');
+    };
+
+    const setError = (name: string, message: string): HTMLElement | null => {
+      const slot = errorSlot(name);
+      const target: HTMLElement | null = name === 'references' ? fileInput : fieldByName(name);
+      if (slot) {
+        slot.textContent = message;
+        slot.hidden = false;
+      }
+      if (target) {
+        target.setAttribute('aria-invalid', 'true');
+        if (slot?.id) describe(target, slot.id, true);
+      }
+      return name === 'references' ? pickButton || fileInput : target;
+    };
+
+    const clearError = (name: string) => {
+      const slot = errorSlot(name);
+      const target: HTMLElement | null = name === 'references' ? fileInput : fieldByName(name);
+      if (slot) {
+        slot.textContent = '';
+        slot.hidden = true;
+      }
+      if (target) {
+        target.removeAttribute('aria-invalid');
+        if (slot?.id) describe(target, slot.id, false);
+      }
+    };
+
+    const clearAllErrors = () => {
+      form.querySelectorAll<HTMLElement>('[data-error-for]').forEach((slot) => {
+        const name = slot.dataset.errorFor;
+        if (name) clearError(name);
       });
     };
 
-    const showFieldError = (name: string, message: string) => {
-      const err = form.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
-      const input = form.elements.namedItem(name) as HTMLElement | null;
-      if (err) {
-        err.textContent = message;
-        err.hidden = false;
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    const messageFor = (f: Field): string | null => {
+      if (f instanceof HTMLInputElement && f.type === 'checkbox') {
+        return f.checked ? null : REQUIRED[f.name] || 'Please tick this box before sending.';
       }
-      if (input && 'setAttribute' in input) {
-        input.setAttribute('aria-invalid', 'true');
-        if (err?.id) {
-          const ids = new Set((input.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
-          ids.add(err.id);
-          input.setAttribute('aria-describedby', Array.from(ids).join(' '));
-        }
-      }
-      return input;
+      const value = f.value.trim();
+      if (f.required && !value) return REQUIRED[f.name] || 'This field is required.';
+      if (f.name === 'email' && value && !EMAIL_RE.test(value)) return EMAIL_INVALID;
+      if (f.name === 'idea' && value && value.length < IDEA_MIN) return IDEA_TOO_SHORT;
+      const max = Number(f.getAttribute('maxlength')) || 0;
+      if (max > 0 && value.length > max) return `Please keep this under ${max} characters.`;
+      return null;
     };
 
-    const showStatus = (html: string, ok = false) => {
-      status.innerHTML = html;
+    const validateField = (f: Field): boolean => {
+      const message = messageFor(f);
+      if (message) setError(f.name, message);
+      else clearError(f.name);
+      return !message;
+    };
+
+    /* ---------- status banner ---------- */
+
+    const link = (href: string, text: string, rel?: string) => {
+      const a = document.createElement('a');
+      a.href = href;
+      a.textContent = text;
+      if (rel) a.rel = rel;
+      return a;
+    };
+
+    const showStatus = (message: string, { ok = false, fallback = false } = {}) => {
+      const main = document.createElement('p');
+      main.textContent = message;
+      const nodes: Node[] = [main];
+      if (fallback && (tel || instagram)) {
+        const alt = document.createElement('p');
+        alt.append('You can also ');
+        if (tel) alt.append('call ', link(`tel:${tel}`, telDisplay));
+        if (tel && instagram) alt.append(' or ');
+        if (instagram) alt.append('message ', link(instagram, instagramHandle, 'me noopener'), ' on Instagram');
+        alt.append('.');
+        nodes.push(alt);
+      }
+      status.replaceChildren(...nodes);
       status.classList.toggle('booking__status--ok', ok);
       status.hidden = false;
-      status.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     };
 
     const hideStatus = () => {
       status.hidden = true;
-      status.textContent = '';
+      status.replaceChildren();
+      status.classList.remove('booking__status--ok');
     };
 
-    const setBusy = (busy: boolean) => {
-      submit.disabled = busy;
-      submit.setAttribute('aria-busy', String(busy));
-      label.textContent = busy ? 'Sending' : idleLabel;
+    /* ---------- busy + progress ---------- */
+
+    let busy = false;
+
+    const setProgress = (ratio: number) => {
+      const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+      if (progressFill) progressFill.style.width = `${pct}%`;
+      progressBar?.setAttribute('aria-valuenow', String(pct));
+      if (progressText) progressText.textContent = pct < 100 ? `Uploading images… ${pct}%` : 'Upload complete. Sending…';
     };
 
-    // Native validation first, but surface it in our own error slots so the
-    // message sits next to the field in both themes.
-    const nativeCheck = (): HTMLElement | null => {
-      let first: HTMLElement | null = null;
-      const fields = Array.from(form.elements) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>;
-      for (const f of fields) {
-        if (!f.name || f.name === 'website' || f.type === 'submit' || f.type === 'file') continue;
-        if (typeof f.checkValidity !== 'function' || f.checkValidity()) continue;
-        const msg =
-          f.validity.valueMissing
-            ? f.type === 'checkbox'
-              ? 'Please confirm the consent checkbox before sending.'
-              : 'This field is required.'
-            : f.validity.typeMismatch
-              ? 'Enter a valid email address so Chris can reply.'
-              : f.validity.tooShort
-                ? 'Describe your idea in at least a sentence (10 or more characters).'
-                : f.validationMessage || 'Please check this field.';
-        const el = showFieldError(f.name, msg);
-        if (!first) first = el;
+    const showProgress = () => {
+      if (!progress) return;
+      progress.hidden = false;
+      setProgress(0);
+    };
+
+    const hideProgress = () => {
+      if (!progress) return;
+      progress.hidden = true;
+      if (progressText) progressText.textContent = '';
+    };
+
+    const setBusy = (on: boolean) => {
+      busy = on;
+      submit.disabled = on;
+      submit.setAttribute('aria-busy', String(on));
+      submitLabel.textContent = on ? 'Sending' : idleLabel;
+      if (!on) hideProgress();
+    };
+
+    /* ---------- reference images ---------- */
+
+    let files: File[] = [];
+    const previews = new Map<File, string>();
+
+    // Writing back to <input type=file> needs a constructible DataTransfer (every
+    // evergreen browser). Without it the picker falls back to plain native behaviour.
+    const canSync = (() => {
+      try {
+        return typeof DataTransfer === 'function' && new DataTransfer().items !== undefined;
+      } catch {
+        return false;
       }
-      return first;
+    })();
+
+    const isImage = (f: File) => f.type.startsWith('image/');
+    // Same name and size means the same photo picked twice (a re-export changes at least one).
+    const fileKey = (f: File) => `${f.name}|${f.size}`;
+
+    const syncInput = () => {
+      if (!fileInput || !canSync) return;
+      const dt = new DataTransfer();
+      for (const f of files) dt.items.add(f);
+      fileInput.files = dt.files;
     };
 
-    const fileCheck = (): string | null => {
-      if (!fileInput || !fileInput.files) return null;
-      const files = Array.from(fileInput.files);
+    const fileProblem = (): string | null => {
       if (files.length > MAX_FILES) return `Attach at most ${MAX_FILES} images.`;
       const big = files.find((f) => f.size > MAX_BYTES);
-      if (big) return `"${big.name}" is over 8 MB. Resize it or choose a smaller image.`;
-      const notImage = files.find((f) => f.type && !f.type.startsWith('image/'));
-      if (notImage) return `"${notImage.name}" is not an image. Only image files can be attached.`;
+      if (big) return `"${big.name}" is over ${fmt(MAX_BYTES)}. Resize it or choose a smaller image.`;
+      const bad = files.find((f) => !isImage(f));
+      if (bad) return `"${bad.name}" isn't a recognized image. JPEG, PNG, WebP or HEIC photos work.`;
       return null;
     };
 
-    const fmt = (n: number) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
-
-    fileInput?.addEventListener('change', () => {
-      if (!fileList || !fileInput.files) return;
-      const files = Array.from(fileInput.files);
-      fileList.innerHTML = files
-        .map((f, i) => {
-          const bad = f.size > MAX_BYTES || (f.type && !f.type.startsWith('image/')) || i >= MAX_FILES;
-          return `<li${bad ? ' class="is-bad"' : ''}><span>${escape(f.name)}</span><span>${fmt(f.size)}</span></li>`;
-        })
-        .join('');
-      fileList.hidden = files.length === 0;
-      const problem = fileCheck();
-      const err = form.querySelector<HTMLElement>('[data-error-for="references"]');
-      if (err) {
-        err.textContent = problem || '';
-        err.hidden = !problem;
+    const previewUrl = (f: File): string => {
+      let url = previews.get(f);
+      if (!url) {
+        url = URL.createObjectURL(f);
+        previews.set(f, url);
       }
-      fileInput.toggleAttribute('aria-invalid', Boolean(problem));
+      return url;
+    };
+
+    const dropPreview = (f: File) => {
+      const url = previews.get(f);
+      if (url) {
+        URL.revokeObjectURL(url);
+        previews.delete(f);
+      }
+    };
+
+    const renderFiles = () => {
+      if (!fileList) return;
+      const items = files.map((f, i) => {
+        const li = document.createElement('li');
+        li.className = 'booking__thumb';
+        const bad = f.size > MAX_BYTES || !isImage(f) || i >= MAX_FILES;
+        if (bad) li.classList.add('is-bad');
+
+        const placeholder = () => {
+          const ph = document.createElement('span');
+          ph.className = 'booking__thumb-ph';
+          ph.textContent = (f.name.split('.').pop() || 'image').slice(0, 5);
+          return ph;
+        };
+
+        if (isImage(f)) {
+          const img = document.createElement('img');
+          img.className = 'booking__thumb-img';
+          img.alt = '';
+          img.decoding = 'async';
+          img.src = previewUrl(f);
+          // HEIC and friends: the browser cannot draw a preview, but the file still uploads fine.
+          img.addEventListener('error', () => img.replaceWith(placeholder()), { once: true });
+          li.append(img);
+        } else {
+          li.append(placeholder());
+        }
+
+        const name = document.createElement('span');
+        name.className = 'booking__thumb-name';
+        name.textContent = f.name;
+        name.title = f.name;
+
+        const meta = document.createElement('span');
+        meta.className = 'booking__thumb-meta';
+        meta.textContent =
+          f.size > MAX_BYTES ? `${fmt(f.size)}, over ${fmt(MAX_BYTES)}` : !isImage(f) ? 'Not an image' : fmt(f.size);
+
+        li.append(name, meta);
+
+        if (canSync) {
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'booking__thumb-remove';
+          remove.textContent = 'Remove';
+          remove.setAttribute('aria-label', `Remove ${f.name}`);
+          remove.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeFile(f);
+          });
+          li.append(remove);
+        }
+        return li;
+      });
+      fileList.replaceChildren(...items);
+      fileList.hidden = items.length === 0;
+
+      if (fileSummary) {
+        const total = files.reduce((sum, f) => sum + f.size, 0);
+        fileSummary.textContent = files.length
+          ? `${files.length} of ${MAX_FILES} images attached · ${fmt(total)}`
+          : 'No images attached yet.';
+      }
+    };
+
+    const reportFiles = (extra?: string) => {
+      const problem = extra || fileProblem();
+      if (problem) setError('references', problem);
+      else clearError('references');
+    };
+
+    const addFiles = (incoming: ArrayLike<File> | null | undefined) => {
+      if (!incoming || !incoming.length) return;
+      const next = [...files];
+      for (const f of Array.from(incoming)) {
+        if (!next.some((m) => fileKey(m) === fileKey(f))) next.push(f);
+      }
+      let leftOut = 0;
+      if (next.length > MAX_FILES) {
+        leftOut = next.length - MAX_FILES;
+        next.length = MAX_FILES;
+      }
+      for (const f of files) if (!next.includes(f)) dropPreview(f);
+      files = next;
+      syncInput();
+      renderFiles();
+      reportFiles(
+        leftOut
+          ? `Only the first ${MAX_FILES} images were kept; ${leftOut} more ${leftOut === 1 ? 'was' : 'were'} left out.`
+          : undefined,
+      );
+    };
+
+    const removeFile = (f: File) => {
+      files = files.filter((x) => x !== f);
+      dropPreview(f);
+      syncInput();
+      renderFiles();
+      reportFiles();
+      (pickButton || fileInput)?.focus();
+    };
+
+    if (fileInput) {
+      fileInput.addEventListener('change', () => {
+        if (canSync) {
+          // The picker replaced the input's list with the new selection: merge it into ours.
+          addFiles(fileInput.files);
+        } else {
+          files = Array.from(fileInput.files || []);
+          renderFiles();
+          reportFiles();
+        }
+      });
+
+      pickButton?.addEventListener('click', () => fileInput.click());
+
+      if (dropzone) {
+        dropzone.addEventListener('click', (e) => {
+          const t = e.target as Element;
+          if (t.closest('button, input, a, [data-booking-file-list]')) return;
+          fileInput.click();
+        });
+
+        if (canSync) {
+          const over = (e: DragEvent) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            dropzone.classList.add('is-dragover');
+          };
+          dropzone.addEventListener('dragenter', over);
+          dropzone.addEventListener('dragover', over);
+          dropzone.addEventListener('dragleave', (e) => {
+            const to = (e as DragEvent).relatedTarget as Node | null;
+            if (!to || !dropzone.contains(to)) dropzone.classList.remove('is-dragover');
+          });
+          dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('is-dragover');
+            addFiles(e.dataTransfer?.files);
+          });
+          // A photo dropped anywhere else on the page must not navigate away from a half-written form.
+          document.addEventListener('dragover', (e) => e.preventDefault());
+          document.addEventListener('drop', (e) => e.preventDefault());
+        }
+      }
+
+      if (canSync) {
+        ideaField?.addEventListener('paste', (e) => {
+          const pasted = e.clipboardData?.files;
+          if (pasted && pasted.length && Array.from(pasted).every(isImage)) {
+            e.preventDefault();
+            addFiles(pasted);
+          }
+        });
+      }
+    }
+
+    /* ---------- idea counter + draft ---------- */
+
+    const updateCount = () => {
+      if (!ideaField || !ideaCount) return;
+      const n = ideaField.value.length;
+      ideaCount.textContent = `${n.toLocaleString('en-US')} / ${IDEA_MAX.toLocaleString('en-US')}`;
+      ideaCount.classList.toggle('is-near', n >= IDEA_MAX * 0.9);
+    };
+
+    const readDraft = (): Record<string, string> => {
+      try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch {
+        return {};
+      }
+    };
+
+    const writeDraft = () => {
+      try {
+        const data: Record<string, string> = {};
+        for (const name of DRAFT_FIELDS) {
+          const el = fieldByName(name);
+          if (el && el.value) data[name] = el.value;
+        }
+        if (Object.keys(data).length) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+        else sessionStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* storage unavailable: the draft just lives in the page */
+      }
+    };
+
+    const clearDraft = () => {
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const restoreDraft = () => {
+      const data = readDraft();
+      for (const name of DRAFT_FIELDS) {
+        const value = data[name];
+        const el = fieldByName(name);
+        if (!el || el.value || typeof value !== 'string' || !value) continue;
+        const max = Number(el.getAttribute('maxlength')) || 0;
+        el.value = max > 0 ? value.slice(0, max) : value;
+      }
+    };
+
+    let draftTimer = 0;
+    form.addEventListener('input', (e) => {
+      const t = e.target;
+      if (t === ideaField) updateCount();
+      if (isField(t as Element) && (t as Field).getAttribute('aria-invalid') === 'true' && !messageFor(t as Field)) {
+        clearError((t as Field).name);
+      }
+      window.clearTimeout(draftTimer);
+      draftTimer = window.setTimeout(writeDraft, 250);
     });
+
+    // Validate a field once the visitor leaves it, but only if they put something in it
+    // (an empty required field is called out at submit time, not while tabbing through).
+    form.addEventListener('focusout', (e) => {
+      const t = e.target as Element;
+      if (!isField(t)) return;
+      const f = t as Field;
+      if (f instanceof HTMLInputElement && f.type === 'checkbox') return;
+      if (f.value.trim() || f.getAttribute('aria-invalid') === 'true') validateField(f);
+    });
+
+    restoreDraft();
+    updateCount();
+
+    /* ---------- turnstile ---------- */
+
+    const hasTurnstile = !!form.querySelector('.cf-turnstile');
+    const turnstileToken = () => {
+      const el = form.elements.namedItem('cf-turnstile-response');
+      return el instanceof HTMLInputElement ? el.value : '';
+    };
+    const resetTurnstile = () => {
+      const t = (window as unknown as { turnstile?: { reset?: () => void } }).turnstile;
+      try {
+        t?.reset?.();
+      } catch {
+        /* widget not mounted */
+      }
+    };
+
+    /* ---------- submit ---------- */
+
+    interface Reply {
+      status: number;
+      body: { ok?: boolean; message?: string; errors?: Record<string, string[] | string> } | null;
+    }
+
+    const send = (body: FormData, withProgress: boolean) =>
+      new Promise<Reply>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', form.action, true);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.responseType = 'json';
+        xhr.timeout = 180_000;
+        if (withProgress) {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) setProgress(e.loaded / e.total);
+          });
+        }
+        xhr.addEventListener('load', () => resolve({ status: xhr.status, body: xhr.response }));
+        xhr.addEventListener('error', () => reject(new Error('network')));
+        xhr.addEventListener('timeout', () => reject(new Error('timeout')));
+        xhr.addEventListener('abort', () => reject(new Error('abort')));
+        xhr.send(body);
+      });
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (busy) return;
       hideStatus();
-      clearErrors();
+      clearAllErrors();
 
-      const firstInvalid = nativeCheck();
-      const fileProblem = fileCheck();
-      if (fileProblem) showFieldError('references', fileProblem);
-      if (firstInvalid || fileProblem) {
-        (firstInvalid || fileInput)?.focus();
-        showStatus('Please check the highlighted fields and try again.');
+      let first: HTMLElement | null = null;
+      for (const f of fields()) {
+        if (!validateField(f) && !first) first = f;
+      }
+      const problem = fileProblem();
+      if (problem) {
+        const el = setError('references', problem);
+        if (!first) first = el;
+      }
+      if (first) {
+        showStatus(INVALID_FORM);
+        first.focus();
+        return;
+      }
+
+      if (hasTurnstile && !turnstileToken()) {
+        showStatus(TURNSTILE_WAIT);
         return;
       }
 
       setBusy(true);
+      if (files.length) showProgress();
+
       try {
-        const res = await fetch(form.action, {
-          method: 'POST',
-          body: new FormData(form),
-          headers: { Accept: 'application/json' },
-          credentials: 'same-origin',
-        });
-        let body: { ok?: boolean; message?: string; errors?: Record<string, string[] | string> } = {};
-        try {
-          body = await res.json();
-        } catch {
-          /* non-JSON error page; the generic message below covers it */
+        const reply = await send(new FormData(form), files.length > 0);
+        const body = reply.body || {};
+
+        if (reply.status === 200 && body.ok === true) {
+          clearDraft();
+          showStatus('Sent. Taking you to the confirmation page.', { ok: true });
+          window.location.assign('/thanks/');
+          return; // stays busy so a second click cannot send twice while the page turns over
         }
-        if (res.ok && body.ok) {
-          showStatus('Sent. Taking you to the confirmation page.', true);
-          window.location.href = '/thanks/';
-          return;
-        }
-        let first: HTMLElement | null = null;
-        if (body.errors) {
-          for (const [name, msgs] of Object.entries(body.errors)) {
-            const msg = Array.isArray(msgs) ? msgs[0] : msgs;
-            if (!msg) continue;
-            const el = showFieldError(name, msg);
-            if (!first) first = el;
+
+        let firstBad: HTMLElement | null = null;
+        if (body.errors && typeof body.errors === 'object') {
+          for (const [name, messages] of Object.entries(body.errors)) {
+            const message = Array.isArray(messages) ? messages[0] : messages;
+            if (typeof message !== 'string' || !message) continue;
+            const el = setError(name, message);
+            if (!firstBad) firstBad = el;
           }
         }
-        const generic =
-          body.message ||
-          (res.status === 429
-            ? 'Too many requests from your connection. Please wait 15 minutes and try again, or call the shop.'
-            : 'We could not send your request just now. Nothing you typed was lost.');
-        showStatus(`${escape(generic)}${res.status === 400 && body.errors ? '' : fallbackHtml()}`);
-        (first || submit).focus();
-      } catch {
-        showStatus(`We could not reach the server. Check your connection and try again.${fallbackHtml()}`);
-      } finally {
+        const message =
+          typeof body.message === 'string' && body.message
+            ? body.message
+            : reply.status === 429
+              ? RATE_LIMITED
+              : reply.status === 413
+                ? TOO_LARGE
+                : SEND_FAILED;
+        showStatus(message, { fallback: !(reply.status === 400 && firstBad) });
+        resetTurnstile();
         setBusy(false);
+        (firstBad || submit).focus();
+      } catch (err) {
+        const kind = err instanceof Error ? err.message : '';
+        showStatus(kind === 'timeout' ? TIMED_OUT : OFFLINE, { fallback: true });
+        resetTurnstile();
+        setBusy(false);
+        submit.focus();
+      }
+    });
+
+    // Coming back from /thanks/ via the back button restores the page from cache with the
+    // button still disabled; put it back to work.
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) {
+        setBusy(false);
+        hideStatus();
       }
     });
   }
