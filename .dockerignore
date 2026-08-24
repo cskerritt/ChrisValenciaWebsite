@@ -1,0 +1,16 @@
+.git
+.astro
+node_modules
+dist
+docs
+tests
+playwright.config.ts
+vitest.config.ts
+test-results
+playwright-report
+scripts
+README.md
+Dockerfile
+.dockerignore
+*.log
+.DS_Store
