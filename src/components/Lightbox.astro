@@ -1,0 +1,551 @@
+---
+/**
+ * Lightbox: one <dialog> per page that enlarges any FlashGrid tile.
+ *
+ * FlashGrid renders this at its end. When several grids share a page only the
+ * first render emits the markup (tracked on Astro.locals for the request) and
+ * Astro dedupes the script, so pages never end up with two dialogs. The dialog
+ * is a shell: everything visible comes from the clicked tile's data-*
+ * attributes (data-full, data-title, data-meta, data-no, data-alt).
+ *
+ * Behaviour (progressive: without JavaScript every tile is a plain link to the
+ * full-size JPEG, and this dialog stays closed and inert):
+ * - click/tap a tile -> showModal(). The browse set is the tiles of that grid
+ *   that are not filtered out, in sheet order.
+ * - Left/Right (and Home/End) browse; Escape, the Close button or a click on
+ *   the backdrop closes; swiping the image browses on touch.
+ * - Focus lands on Close, Tab cycles inside the dialog (showModal makes the
+ *   rest of the page inert as well), and focus returns to the opening tile.
+ * - The URL hash mirrors the open piece (#chris-21) via replaceState, and a
+ *   page loaded with a matching hash opens straight onto that piece, so the
+ *   ImageObject URLs in the JSON-LD land on something visible.
+ * - Page scroll is locked behind the dialog (html.lb-open).
+ */
+const locals = (Astro.locals ?? {}) as { lightboxRendered?: boolean };
+const alreadyRendered = locals.lightboxRendered === true;
+try {
+  locals.lightboxRendered = true;
+} catch {
+  /* locals not writable in this context: render anyway */
+}
+---
+
+{
+  !alreadyRendered && (
+    <dialog class="lightbox" data-lightbox aria-labelledby="lightbox-title" aria-describedby="lightbox-meta">
+      <div class="lightbox__frame reg-marks" data-lb-frame>
+        <div class="lightbox__bar">
+          <p class="lightbox__legend">
+            <span class="sheet-no" data-lb-no />
+            <span class="lightbox__counter" data-lb-counter />
+          </p>
+          <button type="button" class="lightbox__btn lightbox__close" data-lb-close aria-label="Close">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+              <path d="M4 4l12 12M16 4L4 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <figure class="lightbox__figure">
+          <div class="lightbox__stage halftone halftone--full" data-lb-stage>
+            <img class="lightbox__img" data-lb-img alt="" decoding="async" />
+            <button type="button" class="lightbox__btn lightbox__nav lightbox__nav--prev" data-lb-prev aria-label="Previous piece">
+              <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+                <path d="M12.5 3.5 6 10l6.5 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button type="button" class="lightbox__btn lightbox__nav lightbox__nav--next" data-lb-next aria-label="Next piece">
+              <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+                <path d="M7.5 3.5 14 10l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <figcaption class="lightbox__cap">
+            <p class="lightbox__title" id="lightbox-title" data-lb-title />
+            <p class="lightbox__meta" id="lightbox-meta" data-lb-meta />
+          </figcaption>
+        </figure>
+
+        <p class="lightbox__hint" aria-hidden="true">
+          <kbd>←</kbd> <kbd>→</kbd> browse · <kbd>Esc</kbd> closes
+        </p>
+      </div>
+    </dialog>
+  )
+}
+
+<style is:global>
+  html.lb-open {
+    overflow: hidden;
+  }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: var(--gutter);
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    overscroll-behavior: contain;
+  }
+
+  .lightbox[open] {
+    display: grid;
+    place-items: center;
+  }
+
+  .lightbox::backdrop {
+    background: rgba(20, 18, 16, 0.86);
+  }
+
+  .lightbox__frame {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(100%, 1120px);
+    max-height: 100%;
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--accent);
+    --mark-inset: -10px;
+    --mark-color: var(--paper);
+    outline: none;
+  }
+
+  .lightbox__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s);
+    padding: 0.4rem 0.4rem 0.4rem 1rem;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .lightbox__legend {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.75em;
+    min-width: 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .lightbox__legend .sheet-no {
+    font-size: var(--step-0);
+  }
+
+  .lightbox__figure {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 0;
+  }
+
+  .lightbox__stage {
+    position: relative;
+    height: min(72dvh, 820px);
+    min-height: 220px;
+    background: var(--paper-2);
+    --halftone-opacity: 0.09;
+    overflow: hidden;
+    touch-action: pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .lightbox__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: clamp(6px, 1.5vw, 16px);
+    transition: opacity 0.2s ease;
+  }
+
+  .lightbox__img:not([src]) {
+    visibility: hidden;
+  }
+
+  .lightbox__stage.is-loading .lightbox__img {
+    opacity: 0.35;
+  }
+
+  .lightbox__stage.is-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 38%;
+    height: 3px;
+    background: var(--accent);
+    animation: lb-progress 1.1s linear infinite;
+  }
+
+  @keyframes lb-progress {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(270%);
+    }
+  }
+
+  .lightbox__cap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    padding: 0.7rem 1rem 0.8rem;
+    border-top: 1px solid var(--ink);
+  }
+
+  .lightbox__title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-1);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  .lightbox__meta {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  .lightbox__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: var(--tap);
+    height: var(--tap);
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1.5px solid var(--ink);
+    border-radius: 50%;
+    box-shadow: 3px 3px 0 var(--ink);
+    transition:
+      background-color 0.15s,
+      color 0.15s,
+      transform 0.15s var(--ease-out),
+      box-shadow 0.15s var(--ease-out);
+  }
+
+  .lightbox__btn:hover {
+    color: var(--on-accent);
+    background: var(--accent-fill);
+    border-color: var(--accent-fill);
+  }
+
+  .lightbox__btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--ink);
+  }
+
+  .lightbox__btn:focus-visible {
+    outline-offset: 4px;
+  }
+
+  .lightbox__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+  }
+
+  .lightbox__nav:active {
+    transform: translate(2px, calc(-50% + 2px));
+  }
+
+  .lightbox__nav--prev {
+    left: clamp(6px, 1.5vw, 16px);
+  }
+
+  .lightbox__nav--next {
+    right: clamp(6px, 1.5vw, 16px);
+  }
+
+  .lightbox__hint {
+    display: none;
+    padding: 0.35rem 1rem 0.5rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    text-align: right;
+  }
+
+  .lightbox__hint kbd {
+    font: inherit;
+    font-style: normal;
+    padding: 0 0.35em;
+    border: 1px solid var(--rule-2);
+    border-radius: 3px;
+  }
+
+  @media (hover: hover) and (min-width: 700px) {
+    .lightbox__hint {
+      display: block;
+    }
+  }
+
+  @media (max-width: 599.98px) {
+    .lightbox {
+      padding: 10px;
+    }
+
+    .lightbox__frame {
+      box-shadow: 5px 5px 0 var(--accent);
+    }
+
+    .lightbox__stage {
+      height: min(64dvh, 820px);
+    }
+
+    .lightbox__cap {
+      padding: 0.6rem 0.8rem 0.7rem;
+    }
+  }
+
+  @media print {
+    .lightbox {
+      display: none !important;
+    }
+  }
+</style>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('dialog[data-lightbox]');
+
+  if (dialog && typeof dialog.showModal === 'function') {
+    const pick = <T extends HTMLElement>(sel: string) => dialog.querySelector<T>(sel) as T;
+    const stage = pick<HTMLElement>('[data-lb-stage]');
+    const img = pick<HTMLImageElement>('[data-lb-img]');
+    const titleEl = pick<HTMLElement>('[data-lb-title]');
+    const metaEl = pick<HTMLElement>('[data-lb-meta]');
+    const noEl = pick<HTMLElement>('[data-lb-no]');
+    const counterEl = pick<HTMLElement>('[data-lb-counter]');
+    const prevBtn = pick<HTMLButtonElement>('[data-lb-prev]');
+    const nextBtn = pick<HTMLButtonElement>('[data-lb-next]');
+    const closeBtn = pick<HTMLButtonElement>('[data-lb-close]');
+
+    interface Piece {
+      tile: HTMLAnchorElement;
+      id: string;
+      src: string;
+      alt: string;
+      title: string;
+      meta: string;
+      no: string;
+    }
+
+    let pieces: Piece[] = [];
+    let index = 0;
+    let opener: HTMLElement | null = null;
+    let loadToken = 0;
+
+    const TILE = 'a.tile[data-id]';
+
+    const read = (tile: HTMLAnchorElement): Piece => ({
+      tile,
+      id: tile.dataset.id || tile.id,
+      src: tile.dataset.full || tile.href,
+      alt: tile.dataset.alt || tile.querySelector('img')?.alt || '',
+      title: tile.dataset.title || '',
+      meta: tile.dataset.meta || '',
+      no: tile.dataset.no || '',
+    });
+
+    /** Tiles of one grid that are not filtered out, in sheet order. */
+    const collect = (scope: ParentNode): Piece[] =>
+      Array.from(scope.querySelectorAll<HTMLAnchorElement>(TILE))
+        .filter((t) => !t.closest('[hidden]'))
+        .map(read);
+
+    const wrap = (i: number) => (pieces.length ? (i + pieces.length) % pieces.length : 0);
+
+    const preload = (i: number) => {
+      const p = pieces[wrap(i)];
+      if (p) new Image().src = p.src;
+    };
+
+    const setHash = (id: string) => {
+      const url = new URL(location.href);
+      url.hash = id ? `#${id}` : '';
+      history.replaceState(history.state, '', url);
+    };
+
+    const show = (i: number) => {
+      if (!pieces.length) return;
+      index = wrap(i);
+      const p = pieces[index];
+      const token = ++loadToken;
+
+      stage.classList.add('is-loading');
+      titleEl.textContent = p.title || p.alt;
+      metaEl.textContent = p.meta;
+      noEl.textContent = p.no ? `No. ${p.no}` : '';
+      counterEl.textContent = `${index + 1} of ${pieces.length}`;
+      img.alt = p.alt;
+      img.src = p.src;
+
+      const done = () => {
+        if (token === loadToken) stage.classList.remove('is-loading');
+      };
+      if (img.complete && img.naturalWidth > 0) done();
+      else {
+        img.onload = done;
+        img.onerror = done;
+      }
+
+      const solo = pieces.length < 2;
+      prevBtn.hidden = solo;
+      nextBtn.hidden = solo;
+
+      preload(index + 1);
+      preload(index - 1);
+      setHash(p.id);
+    };
+
+    const open = (list: Piece[], i: number, from: HTMLElement) => {
+      if (!list.length) return;
+      pieces = list;
+      opener = from;
+      show(i);
+      if (!dialog.open) dialog.showModal();
+      document.documentElement.classList.add('lb-open');
+      closeBtn.focus();
+    };
+
+    const openTile = (tile: HTMLAnchorElement): boolean => {
+      const scope: ParentNode = tile.closest('[data-flash-grid]') ?? document;
+      const list = collect(scope);
+      const i = list.findIndex((p) => p.tile === tile);
+      if (i < 0) return false;
+      open(list, i, tile);
+      return true;
+    };
+
+    // Tiles are links to the JPEG; with JS they open here instead. Modified
+    // clicks (new tab, etc.) keep their native meaning.
+    document.addEventListener('click', (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const tile = (e.target as Element).closest<HTMLAnchorElement>(TILE);
+      if (!tile) return;
+      if (openTile(tile)) e.preventDefault();
+    });
+
+    closeBtn.addEventListener('click', () => dialog.close());
+    prevBtn.addEventListener('click', () => show(index - 1));
+    nextBtn.addEventListener('click', () => show(index + 1));
+
+    // A click on the dialog element itself is a click on the backdrop.
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+
+    const focusable = () =>
+      Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([hidden]):not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+
+    dialog.addEventListener('keydown', (e) => {
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          show(index - 1);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          show(index + 1);
+          break;
+        case 'Home':
+          e.preventDefault();
+          show(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          show(pieces.length - 1);
+          break;
+        case 'Tab': {
+          const items = focusable();
+          if (!items.length) break;
+          const first = items[0];
+          const last = items[items.length - 1];
+          const active = document.activeElement;
+          if (e.shiftKey && (active === first || !dialog.contains(active))) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && active === last) {
+            e.preventDefault();
+            first.focus();
+          }
+          break;
+        }
+      }
+    });
+
+    // Swipe to browse on touch and pen.
+    let swipeId: number | null = null;
+    let swipeX = 0;
+    let swipeY = 0;
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      swipeId = e.pointerId;
+      swipeX = e.clientX;
+      swipeY = e.clientY;
+    });
+    stage.addEventListener('pointerup', (e) => {
+      if (swipeId !== e.pointerId) return;
+      swipeId = null;
+      const dx = e.clientX - swipeX;
+      const dy = e.clientY - swipeY;
+      if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) show(dx < 0 ? index + 1 : index - 1);
+    });
+    stage.addEventListener('pointercancel', () => {
+      swipeId = null;
+    });
+
+    dialog.addEventListener('close', () => {
+      loadToken++;
+      stage.classList.remove('is-loading');
+      img.removeAttribute('src');
+      img.alt = '';
+      document.documentElement.classList.remove('lb-open');
+      if (location.hash) setHash('');
+      const back = opener;
+      opener = null;
+      back?.focus();
+    });
+
+    // Deep links: /portfolio/#chris-21 opens that piece.
+    const openFromHash = () => {
+      const id = decodeURIComponent(location.hash.slice(1));
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (el instanceof HTMLAnchorElement && el.matches(TILE)) openTile(el);
+    };
+
+    window.addEventListener('hashchange', () => {
+      if (location.hash) openFromHash();
+      else if (dialog.open) dialog.close();
+    });
+
+    openFromHash();
+  }
+</script>

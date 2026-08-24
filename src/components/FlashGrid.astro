@@ -1,0 +1,787 @@
+---
+/**
+ * FlashGrid: the gallery drawn as a flash sheet.
+ *
+ * A bordered sheet with registration marks and a legend on the rule, holding
+ * a CSS grid of pieces. Featured pieces take a 2x2 span ("heroes"), the rest
+ * are 1x1, `grid-auto-flow: dense` packs them, and every tile is a thin ink
+ * frame with a serif caption strip ("No. 07 · New-school · Forearm"). The
+ * column count follows the sheet's own width (container queries): 2 columns,
+ * 3 from 600px, 4 from 900px, so a 2x2 span always fits.
+ *
+ * Usage:
+ *   <FlashGrid items={portfolio} filterable sheetNo="No. 02" />        (/portfolio/)
+ *   <FlashGrid items={featured} limit={8} sheetNo="No. 02" />           (home)
+ *   <FlashGrid items={byStyle} heroes="featured" cta={false} />        (style page)
+ *
+ * Props
+ *   items       PortfolioEntry[] from src/data/portfolio.json (sheet order)
+ *   filterable  adds style chips (aria-pressed) + a live status line; only
+ *               styles present in `items` get a chip. Filtering toggles the
+ *               `hidden` attribute on tiles, nothing else. `?style=key` in
+ *               the URL preselects a chip and chips keep the URL in sync.
+ *   limit       render only the first N items
+ *   heroes      'auto' (default): featured pieces are 2x2, except when every
+ *               item is featured (home, location pages), where every fifth
+ *               piece is a hero so the sheet still reads as a sheet.
+ *               'featured': every featured piece is 2x2. 'none': all 1x1.
+ *   cta         (default true) a full-width "sheet note" strip linking to
+ *               /book/ closes the sheet, so the booking ask sits inside the
+ *               work rather than in a separate section.
+ *   id          unique per page (dialog wiring + chip labelling)
+ *   sheetNo     legend number, e.g. "No. 02"
+ *   sheetTitle  legend title (default "Portfolio")
+ *   label       accessible name of the region (default "Tattoo portfolio")
+ *
+ * Images: tiles get build-time WebP variants (320–1200 px, via astro:assets
+ * from the public/ JPEGs) in a <picture>, with the original JPEG as the
+ * fallback and as the link target for no-JS visitors. The lightbox gets a
+ * 1200 px WebP. Nothing about the manifest changes: `file` stays the
+ * canonical contentUrl in the JSON-LD.
+ *
+ * Every tile carries `data-id` and `data-styles` (space-separated keys) and
+ * is `id`ed with the manifest id, so /portfolio/#chris-07 (the ImageObject
+ * URL) lands on the piece. A tile's accessible name is its image alt plus the
+ * visible caption (no aria-label, so label-in-name holds for voice control).
+ * Lightbox.astro is rendered once per page from here.
+ */
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import Lightbox from './Lightbox.astro';
+import shop from '../data/shop.json';
+import { styleLabel, type PortfolioEntry } from '../lib/schema';
+
+export interface Props {
+  items: PortfolioEntry[];
+  filterable?: boolean;
+  limit?: number;
+  heroes?: 'auto' | 'featured' | 'none';
+  cta?: boolean;
+  id?: string;
+  sheetNo?: string;
+  sheetTitle?: string;
+  label?: string;
+}
+
+const {
+  items,
+  filterable = false,
+  limit,
+  heroes = 'auto',
+  cta = true,
+  id = 'flash-grid',
+  sheetNo,
+  sheetTitle = 'Portfolio',
+  label = 'Tattoo portfolio',
+} = Astro.props;
+
+const list = typeof limit === 'number' ? items.slice(0, Math.max(0, limit)) : items;
+
+/** Chip order and the short labels used in captions. */
+const STYLE_NAMES: ReadonlyArray<readonly [string, string]> = [
+  ['illustrative', 'Illustrative'],
+  ['neo-traditional', 'Neo-traditional'],
+  ['new-school', 'New-school'],
+  ['cover-up', 'Cover-ups'],
+  ['blackwork', 'Black & grey'],
+  ['color', 'Color'],
+];
+
+const shortName = (key: string): string =>
+  STYLE_NAMES.find(([k]) => k === key)?.[1] ?? styleLabel(key).replace(/ tattoos$/, '');
+
+const counts = new Map<string, number>();
+for (const it of list) for (const s of it.style) counts.set(s, (counts.get(s) ?? 0) + 1);
+const chips = STYLE_NAMES.filter(([k]) => (counts.get(k) ?? 0) > 0).map(([key, name]) => ({
+  key,
+  name,
+  count: counts.get(key) ?? 0,
+}));
+
+const allFeatured = list.length > 0 && list.every((it) => it.featured === true);
+const isHero = (it: PortfolioEntry, i: number): boolean => {
+  if (heroes === 'none') return false;
+  if (heroes === 'featured') return it.featured === true;
+  return it.featured === true && (!allFeatured || i % 5 === 0);
+};
+
+/** "chris-07" -> "07"; anything without digits falls back to its position. */
+const numberOf = (it: PortfolioEntry, i: number): string => {
+  const m = it.id.match(/(\d+)\s*$/);
+  return (m ? m[1] : String(i + 1)).padStart(2, '0');
+};
+
+const WIDTHS = [320, 480, 640, 960, 1200];
+const SIZES_TILE = '(min-width: 1240px) 280px, (min-width: 900px) 24vw, (min-width: 600px) 32vw, 48vw';
+const SIZES_HERO = '(min-width: 1240px) 570px, (min-width: 900px) 48vw, (min-width: 600px) 64vw, 96vw';
+
+const sources = import.meta.glob<ImageMetadata>('/public/images/portfolio/*.jpg', {
+  eager: true,
+  import: 'default',
+});
+
+const tiles = await Promise.all(
+  list.map(async (entry, i) => {
+    const hero = isHero(entry, i);
+    const meta = sources[`/public${entry.file}`];
+    let srcset: string | undefined;
+    let full: string | undefined;
+    if (meta) {
+      const [set, big] = await Promise.all([
+        getImage({ src: meta, widths: WIDTHS, format: 'webp', quality: 78 }),
+        getImage({ src: meta, width: Math.min(1200, meta.width), format: 'webp', quality: 82 }),
+      ]);
+      srcset = set.srcSet.attribute;
+      full = big.src;
+    }
+    const primary = entry.style[0] ? shortName(entry.style[0]) : '';
+    const caption = [primary, entry.placement].filter(Boolean).join(' · ');
+    const fullMeta = [...entry.style.map(shortName), entry.placement].filter(Boolean).join(' · ');
+    const no = numberOf(entry, i);
+    return {
+      entry,
+      i,
+      hero,
+      no,
+      srcset,
+      full,
+      primary,
+      caption,
+      fullMeta,
+      sizes: hero ? SIZES_HERO : SIZES_TILE,
+      eager: i < 4,
+    };
+  }),
+);
+
+const total = tiles.length;
+const lcp = tiles.find((t) => t.hero && t.i < 4) ?? tiles[0];
+const revealDelay = (i: number) => `${((i % 4) * 0.06).toFixed(2)}s`;
+---
+
+<section class="flash" id={id} data-flash-grid aria-label={label}>
+  {
+    filterable && chips.length > 0 && (
+      <div class="flash__filters js-only" data-flash-filters>
+        <p class="flash__filters-label" id={`${id}-filters-label`}>
+          <span class="sheet-no">Filter</span>
+          <span>by style</span>
+        </p>
+        <div class="flash__chips" role="group" aria-labelledby={`${id}-filters-label`}>
+          <button type="button" class="chip" aria-pressed="true" data-filter="all" data-name="All">
+            All <span class="chip__count">{total}</span>
+          </button>
+          {chips.map((c) => (
+            <button type="button" class="chip" aria-pressed="false" data-filter={c.key} data-name={c.name}>
+              {c.name} <span class="chip__count">{c.count}</span>
+            </button>
+          ))}
+        </div>
+        <p class="flash__status" role="status" data-flash-status>
+          Showing all {total} pieces
+        </p>
+      </div>
+    )
+  }
+
+  <div class="flash__sheet halftone halftone--full reg-marks">
+    <p class="flash__legend">
+      {sheetNo && <span class="sheet-no">{sheetNo}</span>}
+      <span class="flash__legend-title">{sheetTitle}</span>
+      <span class="flash__legend-count">
+        <span data-flash-count>{total}</span> {total === 1 ? 'piece' : 'pieces'}
+      </span>
+    </p>
+
+    <ul class="flash__grid" role="list" data-flash-tiles>
+      {
+        tiles.map((t) => (
+          <li
+            class:list={['tile-cell', 'reveal', { 'tile-cell--hero': t.hero }]}
+            style={`--reveal-delay:${revealDelay(t.i)}`}
+          >
+            <a
+              class="tile"
+              id={t.entry.id}
+              href={t.entry.file}
+              data-id={t.entry.id}
+              data-styles={t.entry.style.join(' ')}
+              data-index={t.i}
+              data-no={t.no}
+              data-title={t.entry.title}
+              data-meta={t.fullMeta}
+              data-alt={t.entry.alt}
+              data-full={t.full}
+            >
+              <span class="tile__media">
+                <picture>
+                  {t.srcset && <source type="image/webp" srcset={t.srcset} sizes={t.sizes} />}
+                  <img
+                    src={t.entry.file}
+                    width={t.entry.width}
+                    height={t.entry.height}
+                    alt={t.entry.alt}
+                    loading={t.eager ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchpriority={t === lcp ? 'high' : undefined}
+                  />
+                </picture>
+                <span class="tile__zoom" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="14" height="14" focusable="false">
+                    <path
+                      d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+              </span>
+              <span class="tile__cap">
+                <span class="sheet-no tile__no"><span class="tile__no-word">No. </span>{t.no}</span>
+                <span class="tile__text">
+                  {t.hero && <span class="tile__title">{t.entry.title}</span>}
+                  <span class="tile__meta">
+                    <span class="tile__style">{t.primary}</span>
+                    {t.entry.placement && <span class="tile__place"> · {t.entry.placement}</span>}
+                  </span>
+                </span>
+              </span>
+            </a>
+          </li>
+        ))
+      }
+      {
+        cta && total > 0 && (
+          <li class="tile-cell tile-cell--note reveal" style={`--reveal-delay:${revealDelay(total)}`}>
+            <a class="tile tile--note" href="/book/">
+              <span class="tile-note__no sheet-no">Sheet note</span>
+              <span class="tile-note__text">
+                <span class="tile-note__lead">Want something like this?</span>
+                <span class="tile-note__body">
+                  Send the idea, the placement and any references through the booking form. Chris replies by email.
+                </span>
+              </span>
+              <span class="tile-note__cta">Request a booking</span>
+            </a>
+          </li>
+        )
+      }
+    </ul>
+
+    <p class="flash__empty" data-flash-empty hidden>
+      Nothing on this sheet is tagged with that style yet. <a href="/book/">Ask Chris about it</a> or see more on{' '}
+      <a href={shop.artist.instagram} rel="me noopener">Instagram</a>.
+    </p>
+  </div>
+</section>
+
+<Lightbox />
+
+<style is:global>
+  /* .flash is the size container; the queries below style its descendants
+     (a container query never matches the container itself). */
+  .flash {
+    --flash-gap: clamp(8px, 1.6vw, 14px);
+    --flash-cols: 2;
+    container-type: inline-size;
+  }
+
+  @container (min-width: 600px) {
+    .flash__grid {
+      --flash-cols: 3;
+    }
+  }
+
+  @container (min-width: 900px) {
+    .flash__grid {
+      --flash-cols: 4;
+    }
+  }
+
+  /* ---- Filters ---- */
+  .flash__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs) var(--space-m);
+    margin-bottom: var(--space-l);
+  }
+
+  .flash__filters-label {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45em;
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .flash__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .chip__count {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+
+  .flash__status {
+    flex-basis: 100%;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+
+  /* ---- Sheet ---- */
+  .flash__sheet {
+    position: relative;
+    margin-top: 0.75em;
+    padding: var(--flash-gap);
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    --mark-inset: -9px;
+    --halftone-opacity: 0.08;
+  }
+
+  .flash__legend {
+    position: absolute;
+    top: 0;
+    left: var(--flash-gap);
+    z-index: 1;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.7em;
+    max-width: calc(100% - 2 * var(--flash-gap));
+    padding: 0 0.5em;
+    background: var(--paper);
+    transform: translateY(-50%);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    line-height: 1;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .flash__legend-title {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .flash__legend-count::before {
+    content: '·';
+    margin-right: 0.7em;
+  }
+
+  .flash__grid {
+    display: grid;
+    grid-template-columns: repeat(var(--flash-cols), minmax(0, 1fr));
+    grid-auto-flow: dense;
+    gap: var(--flash-gap);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tile-cell {
+    min-width: 0;
+  }
+
+  .tile-cell--hero {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  /* ---- Tile ---- */
+  .tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    text-decoration: none;
+    transition:
+      transform 0.2s var(--ease-out),
+      box-shadow 0.2s var(--ease-out),
+      background-color 0.2s;
+  }
+
+  .tile:hover {
+    color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .tile-cell--hero .tile {
+    box-shadow:
+      0 0 0 3px var(--paper),
+      0 0 0 4px var(--ink);
+  }
+
+  .tile-cell--hero .tile:hover {
+    box-shadow:
+      0 0 0 3px var(--paper),
+      0 0 0 4px var(--ink),
+      8px 8px 0 var(--accent);
+  }
+
+  .tile:focus-visible {
+    outline-offset: 5px;
+  }
+
+  .tile__media {
+    position: relative;
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    background: var(--paper-2);
+  }
+
+  .tile__media picture,
+  .tile__media img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .tile__media img {
+    object-fit: cover;
+    object-position: center;
+    transition: transform 0.6s var(--ease-out);
+  }
+
+  .tile:hover .tile__media img,
+  .tile:focus-visible .tile__media img {
+    transform: scale(1.035);
+  }
+
+  .tile__cap {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    gap: 0.55em;
+    flex: 0 0 auto;
+    min-height: 2.5rem;
+    padding: 0.4em 0.65em;
+    border-top: 1px solid var(--ink);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step--1);
+    line-height: 1.2;
+    color: var(--ink-2);
+    overflow: hidden;
+    transition: color 0.2s;
+  }
+
+  /* The accent strip slides in from the left on hover/focus. */
+  .tile__cap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--accent-fill);
+    transform: translateX(-101%);
+    transition: transform 0.28s var(--ease-out);
+  }
+
+  .tile:hover .tile__cap::before,
+  .tile:focus-visible .tile__cap::before {
+    transform: none;
+  }
+
+  .tile:hover .tile__cap,
+  .tile:focus-visible .tile__cap,
+  .tile:hover .tile__no,
+  .tile:focus-visible .tile__no {
+    color: var(--on-accent);
+  }
+
+  .tile__no {
+    flex: 0 0 auto;
+    font-size: var(--step--1);
+    transition: color 0.2s;
+  }
+
+  .tile__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 0.1em;
+  }
+
+  .tile__title {
+    font-family: var(--font-display);
+    font-style: normal;
+    font-weight: 700;
+    font-size: var(--step-0);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    transition: color 0.2s;
+  }
+
+  .tile:hover .tile__title,
+  .tile:focus-visible .tile__title {
+    color: var(--on-accent);
+  }
+
+  .tile__meta {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* Hero titles may wrap once; the caption strip has room for two lines. */
+  .tile__title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+
+  /* "Enlarge" chip pinned to the image corner, so the caption keeps its width. */
+  .tile__zoom {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1px solid var(--ink);
+    opacity: 0.85;
+    transition:
+      background-color 0.2s,
+      color 0.2s,
+      opacity 0.2s;
+  }
+
+  .tile:hover .tile__zoom,
+  .tile:focus-visible .tile__zoom {
+    color: var(--on-accent);
+    background: var(--accent-fill);
+    border-color: var(--accent-fill);
+    opacity: 1;
+  }
+
+  /* Hero caption height is chosen so a 2x2 tile's natural height equals two
+     1x1 rows plus the gap (2 * 2.5rem caption - 0.25 * gap): rows that hold
+     only heroes then line up exactly with rows that hold small tiles. */
+  .tile-cell--hero .tile__cap {
+    padding: 0.55em 0.85em;
+    min-height: calc(5rem - 0.25 * var(--flash-gap));
+  }
+
+  .tile-cell--hero .tile__no {
+    font-size: var(--step-0);
+  }
+
+  /* ---- Sheet note: the booking ask as the note at the foot of the sheet ---- */
+  .tile-cell--note {
+    grid-column: 1 / -1;
+  }
+
+  .tile--note {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem var(--space-m);
+    height: auto;
+    padding: clamp(0.85rem, 2cqi, 1.25rem) clamp(0.9rem, 2.4cqi, 1.5rem);
+    background: var(--paper-2);
+    border-left: 5px solid var(--accent);
+  }
+
+  .tile--note:hover {
+    background: var(--accent-soft);
+  }
+
+  .tile-note__no {
+    flex: 0 0 auto;
+    font-size: var(--step--1);
+  }
+
+  .tile-note__text {
+    display: flex;
+    flex: 1 1 18rem;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .tile-note__lead {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: clamp(1.15rem, 2.4cqi, 1.6rem);
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  .tile-note__body {
+    font-size: var(--step--1);
+    line-height: 1.4;
+    color: var(--ink-2);
+    max-width: 52ch;
+  }
+
+  .tile-note__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    flex: 0 0 auto;
+    margin-left: auto;
+    min-height: var(--tap);
+    padding: 0.5em 1.1em;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--paper-3);
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    transition:
+      background-color 0.15s,
+      color 0.15s,
+      border-color 0.15s;
+  }
+
+  .tile-note__cta::after {
+    content: '\2192' / '';
+    display: inline-block;
+    transition: transform 0.15s var(--ease-out);
+  }
+
+  .tile--note:hover .tile-note__cta {
+    color: var(--on-accent);
+    background: var(--accent-fill);
+    border-color: var(--accent-fill);
+  }
+
+  .tile--note:hover .tile-note__cta::after {
+    transform: translateX(3px);
+  }
+
+  .flash__empty {
+    padding: var(--space-l) var(--space-s);
+    text-align: center;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-1);
+    text-wrap: balance;
+  }
+
+  /* Narrower sheets (3 columns and below): small tiles keep the number and
+     the style, the placement waits for the lightbox. */
+  @container (max-width: 899.98px) {
+    .tile-cell:not(.tile-cell--hero) .tile__place {
+      display: none;
+    }
+  }
+
+  @container (max-width: 599.98px) {
+    .tile__zoom {
+      top: 6px;
+      right: 6px;
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  @container (max-width: 419.98px) {
+    .tile__cap {
+      gap: 0.4em;
+      padding-inline: 0.5em;
+      font-size: 0.8rem;
+    }
+
+    .tile-cell:not(.tile-cell--hero) .tile__no {
+      font-size: 0.8rem;
+    }
+  }
+
+  /* Very small phones (sheet under 340px): digits only, the word waits. */
+  @container (max-width: 339.98px) {
+    .tile-cell:not(.tile-cell--hero) .tile__no-word {
+      display: none;
+    }
+
+    .tile-cell:not(.tile-cell--hero) .tile__cap {
+      font-size: 0.75rem;
+    }
+  }
+</style>
+
+<script>
+  const grids = document.querySelectorAll<HTMLElement>('[data-flash-grid]');
+  let urlClaimed = false;
+
+  grids.forEach((grid) => {
+    const chips = Array.from(grid.querySelectorAll<HTMLButtonElement>('[data-filter]'));
+    if (!chips.length) return;
+
+    const tiles = Array.from(grid.querySelectorAll<HTMLElement>('.tile[data-styles]')).map((tile) => ({
+      cell: tile.closest<HTMLElement>('.tile-cell') ?? tile,
+      styles: (tile.dataset.styles || '').split(/\s+/).filter(Boolean),
+    }));
+    const total = tiles.length;
+    const status = grid.querySelector<HTMLElement>('[data-flash-status]');
+    const count = grid.querySelector<HTMLElement>('[data-flash-count]');
+    const empty = grid.querySelector<HTMLElement>('[data-flash-empty]');
+    const note = grid.querySelector<HTMLElement>('.tile-cell--note');
+
+    const apply = (key: string, syncUrl: boolean) => {
+      const chip = chips.find((c) => c.dataset.filter === key) ?? chips[0];
+      const active = chip.dataset.filter || 'all';
+      let shown = 0;
+      for (const t of tiles) {
+        const on = active === 'all' || t.styles.includes(active);
+        t.cell.hidden = !on;
+        if (on) shown++;
+      }
+      for (const c of chips) c.setAttribute('aria-pressed', String(c === chip));
+      if (count) count.textContent = String(shown);
+      if (empty) empty.hidden = shown > 0;
+      if (note) note.hidden = shown === 0;
+      if (status) {
+        status.textContent =
+          active === 'all'
+            ? `Showing all ${total} pieces`
+            : `Showing ${shown} of ${total} pieces: ${chip.dataset.name || active}`;
+      }
+      if (syncUrl) {
+        const url = new URL(location.href);
+        if (active === 'all') url.searchParams.delete('style');
+        else url.searchParams.set('style', active);
+        url.hash = '';
+        history.replaceState(history.state, '', url);
+      }
+    };
+
+    for (const c of chips) c.addEventListener('click', () => apply(c.dataset.filter || 'all', true));
+
+    // ?style=neo-traditional preselects a chip (first filterable grid only).
+    if (!urlClaimed) {
+      urlClaimed = true;
+      const wanted = new URLSearchParams(location.search).get('style');
+      if (wanted && chips.some((c) => c.dataset.filter === wanted)) apply(wanted, false);
+    }
+  });
+</script>

@@ -1,0 +1,267 @@
+---
+/**
+ * /portfolio/ — every piece on one flash sheet: filter chips by style, tap to
+ * enlarge (Lightbox), an ItemList of ImageObjects in the JSON-LD so each piece
+ * has a URL (/portfolio/#chris-07) that the lightbox deep-links to.
+ *
+ * Every number on this page is computed from src/data/portfolio.json; the
+ * shop and artist facts come from src/data/shop.json. No rates, no years.
+ */
+import Base from '../layouts/Base.astro';
+import FlashGrid from '../components/FlashGrid.astro';
+import portfolio from '../data/portfolio.json';
+import shop from '../data/shop.json';
+import { imageList, person, type PortfolioEntry } from '../lib/schema';
+import { STYLE_PAGES } from '../lib/seo';
+
+const items = portfolio as PortfolioEntry[];
+const total = items.length;
+const { shop: s, artist } = shop;
+
+const title = 'Tattoo Portfolio | Chris Valencia, Cranston RI';
+const description = `See ${total} tattoos by Chris Valencia, resident artist at Powerline Tattoo in Cranston, RI: illustrative, neo-traditional and new-school, color and black and grey.`;
+
+// The teacup ship is the share image: it reads at any size and says "surreal".
+const share = items.find((p) => p.id === 'chris-21') ?? items.find((p) => p.featured) ?? items[0];
+
+const styleNames: Record<string, string> = {
+  illustrative: 'Illustrative',
+  'neo-traditional': 'Neo-traditional',
+  'new-school': 'New-school',
+};
+const specialties = artist.specialties.map((k) => styleNames[k] ?? k);
+const colorCount = items.filter((p) => p.style.includes('color')).length;
+const greyCount = items.filter((p) => p.style.includes('blackwork')).length;
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/portfolio/"
+  ogImage={share.file}
+  ogImageAlt={share.alt}
+  breadcrumbs={[{ name: 'Portfolio', path: '/portfolio/' }]}
+  jsonLd={[person(), imageList(items, 'Tattoo portfolio by Chris Valencia')]}
+  bodyClass="page-portfolio"
+>
+  <section class="section container portfolio">
+    <header class="portfolio__head">
+      <div class="portfolio__intro stack">
+        <p class="eyebrow"><span class="sheet-no">No. 02</span> Portfolio</p>
+        <h1>Tattoo Portfolio</h1>
+        <p class="answer">
+          These are tattoos by Chris Valencia, resident artist at {s.name} in {s.addressLocality}, Rhode Island.
+          Most are illustrative, neo-traditional or new-school pieces, in full color and in black and grey, on
+          arms, legs and hands. Filter by style, tap any piece to see it larger, then send your own idea through
+          the booking form.
+        </p>
+        <div class="cluster">
+          <a class="btn btn--primary" href="/book/">Request a booking</a>
+          <a class="btn" href={artist.instagram} rel="me noopener">{artist.instagramHandle} on Instagram</a>
+        </div>
+      </div>
+
+      <dl class="portfolio__facts reveal" aria-label="About this sheet">
+        <div class="portfolio__fact">
+          <dt>Pieces</dt>
+          <dd><span class="portfolio__num">{total}</span> <span class="muted">{colorCount} color · {greyCount} black &amp; grey</span></dd>
+        </div>
+        <div class="portfolio__fact">
+          <dt>Styles</dt>
+          <dd>{specialties.join(', ')}</dd>
+        </div>
+        <div class="portfolio__fact">
+          <dt>Tattooed at</dt>
+          <dd><a href={s.url} rel="noopener">{s.name}</a>, {s.addressLocality}, {s.addressRegion}</dd>
+        </div>
+        <div class="portfolio__fact">
+          <dt>Sessions</dt>
+          <dd>{s.hoursNote}</dd>
+        </div>
+      </dl>
+    </header>
+
+    <FlashGrid items={items} filterable id="portfolio-grid" sheetNo="No. 02" sheetTitle="Portfolio" />
+
+    <div class="portfolio__after">
+      <section class="sheet sheet--paper-2 reg-marks reveal portfolio__cta" aria-labelledby="portfolio-cta-h">
+        <span class="sheet-no sheet__no">Next</span>
+        <div class="portfolio__cta-grid">
+          <div class="stack">
+            <h2 id="portfolio-cta-h">Want something like this?</h2>
+            <p>
+              Send Chris a short description, the placement and any reference images through the booking form.
+              He replies by email, and for custom work that usually means a consultation before anything is
+              drawn. The shop is {s.hoursNote.toLowerCase()}.
+            </p>
+            <div class="cluster">
+              <a class="btn btn--primary" href="/book/">Request a booking</a>
+              <a class="link-more" href="/pricing/">How quoting works</a>
+            </div>
+          </div>
+          <p class="pull-quote">Fun, surreal images with a very animated, whimsical feel.</p>
+        </div>
+      </section>
+
+      <nav class="portfolio__styles reveal" aria-labelledby="portfolio-styles-h" style="--reveal-delay:.1s">
+        <h2 id="portfolio-styles-h" class="portfolio__styles-h">Read about the styles</h2>
+        <ul class="portfolio__style-list" role="list">
+          {
+            STYLE_PAGES.map((l, i) => (
+              <li>
+                <a class="portfolio__style-link" href={l.path}>
+                  <span class="sheet-no" aria-hidden="true">{pad(i + 1)}</span>
+                  <span>{l.name}</span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .portfolio__head {
+    display: grid;
+    gap: var(--space-l);
+    align-items: end;
+    margin-bottom: var(--space-xl);
+  }
+
+  .portfolio__intro {
+    max-width: 60rem;
+  }
+
+  .portfolio__facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border: 1px solid var(--ink);
+    background: var(--paper-3);
+    --mark-inset: -9px;
+  }
+
+  .portfolio__fact {
+    padding: var(--space-s) var(--space-m);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .portfolio__fact:nth-child(odd) {
+    border-right: 1px solid var(--rule);
+  }
+
+  .portfolio__fact:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .portfolio__fact dt {
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .portfolio__fact dd {
+    margin-top: 0.25rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: var(--step-0);
+    line-height: 1.3;
+  }
+
+  .portfolio__num {
+    font-family: var(--font-display);
+    font-style: normal;
+    font-weight: 800;
+    font-size: var(--step-3);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--accent-ink);
+    margin-right: 0.3em;
+  }
+
+  .portfolio__after {
+    display: grid;
+    gap: var(--space-l);
+    margin-top: var(--space-xl);
+  }
+
+  .portfolio__cta-grid {
+    display: grid;
+    gap: var(--space-l);
+    align-items: center;
+  }
+
+  .portfolio__cta p:not(.pull-quote) {
+    max-width: 52ch;
+  }
+
+  .portfolio__styles-h {
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    margin-bottom: var(--space-s);
+  }
+
+  .portfolio__style-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .portfolio__style-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: var(--tap);
+    padding: 0.4em 1em;
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 500;
+    transition: background-color 0.15s, color 0.15s;
+  }
+
+  .portfolio__style-link:hover {
+    color: var(--ink);
+    background: var(--accent-soft);
+  }
+
+  @media (min-width: 900px) {
+    .portfolio__head {
+      grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 1fr);
+    }
+
+    .portfolio__cta-grid {
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 479.98px) {
+    .portfolio__facts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .portfolio__fact:nth-child(odd) {
+      border-right: 0;
+    }
+
+    .portfolio__fact:nth-last-child(-n + 2) {
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .portfolio__fact:last-child {
+      border-bottom: 0;
+    }
+  }
+</style>
