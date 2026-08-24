@@ -108,6 +108,7 @@ export const INFO_PAGES: readonly SiteLink[] = [
   { name: 'FAQ', path: '/faq/' },
   { name: 'Pricing', path: '/pricing/' },
   { name: 'Aftercare', path: '/aftercare/' },
+  { name: 'Traveling In', path: '/travel/' },
   { name: 'Book', path: '/book/' },
 ];
 

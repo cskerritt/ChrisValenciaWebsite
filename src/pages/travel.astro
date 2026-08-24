@@ -1,0 +1,270 @@
+---
+/**
+ * /travel/ — the destination guide: getting tattooed by Chris from outside
+ * Rhode Island. Airports, trains, drive times, where to stay and how to
+ * plan the trip. Everything here is either published site behavior (the
+ * form works from anywhere, consultations happen over email, cover-ups
+ * need an in-person look) or verifiable geography; nothing invents a
+ * policy, a rate or a claim about who already travels in (see
+ * shop.json `unconfirmed`).
+ *
+ * JSON-LD: Person + TattooParlor + FAQPage (the question H2s) + HowTo
+ * (the trip-planning steps). Base adds WebSite and BreadcrumbList.
+ */
+import Base from '../layouts/Base.astro';
+import Cta from '../components/Cta.astro';
+import shop from '../data/shop.json';
+import { person, tattooParlor, faqPage, howTo } from '../lib/schema';
+
+const { shop: s } = shop;
+
+const title = 'Traveling for a Tattoo by Chris Valencia | Cranston, RI';
+const description =
+  'Planning a tattoo trip to Chris Valencia at Powerline Tattoo in Cranston, RI: airports, trains, drive times from Boston and beyond, and booking from anywhere.';
+
+const drives = [
+  { from: 'Boston, MA', route: 'I-93 south to I-95 south, straight into Providence', time: 'About 1 hour' },
+  { from: 'Worcester, MA', route: 'Route 146 south to I-295 or I-95', time: 'About 50 minutes' },
+  { from: 'Cape Cod (Bourne Bridge)', route: 'I-195 west to I-95 north', time: 'About 1 hour 15' },
+  { from: 'Hartford, CT', route: 'I-84 to Route 6, or I-91 south to I-95 north', time: 'About 1 hour 15' },
+  { from: 'New Haven, CT', route: 'I-95 north the whole way', time: 'About 1 hour 45' },
+  { from: 'New York City', route: 'I-95 north, or the train to Providence', time: 'About 3 hours' },
+];
+
+const steps = [
+  {
+    name: 'Send the booking request first',
+    text: 'Book the tattoo before the travel. Send the form with your idea, placement, rough size, budget range and references, and say where you are coming from in the timing field. Settle the design and the date over email, then buy tickets.',
+  },
+  {
+    name: 'Build the trip around the session',
+    text: 'Arrive the night before if you can, and come rested, fed and hydrated; skip alcohol for twenty-four hours before the session. Stay downtown in Providence or near the airport in Warwick, both a short ride from the shop.',
+  },
+  {
+    name: 'Come prepared to sit',
+    text: 'Bring a valid government-issued photo ID, your references, clothes that leave the placement easy to reach, and whatever keeps you comfortable for a few hours: water, a snack, headphones, a charger.',
+  },
+  {
+    name: 'Protect the tattoo on the way home',
+    text: 'Follow the aftercare instructions from your appointment: keep it clean and moisturized, loose clothing over it, and no sun, pools, beaches or hot tubs while it heals. A buffer morning before a long trip home never hurts.',
+  },
+];
+
+const qa = [
+  {
+    id: 'out-of-state',
+    q: "Can I get tattooed by Chris if I don't live in Rhode Island?",
+    a: "Yes. Send the booking form from wherever you are with your idea, placement, rough size, budget range and references. Chris replies by email and the design conversation happens before you travel. Say where you're coming from in the timing field, so dates can line up with your trip instead of fighting it.",
+  },
+  {
+    id: 'airport',
+    q: "What's the closest airport to the shop?",
+    a: 'Rhode Island T.F. Green International Airport (PVD) in Warwick, about fifteen minutes from the chair by car or rideshare. Boston Logan (BOS) is the big-hub alternative, about an hour away by car, with direct flights from most of the country and a train connection to Providence.',
+  },
+  {
+    id: 'train',
+    q: 'Can I get there by train?',
+    a: "Yes. Amtrak's Northeast Regional and Acela stop at Providence station, and so does the MBTA commuter rail from Boston. From the station, the shop is about a ten-minute drive or rideshare down Route 10 to Reservoir Avenue. Coming up from New York, the train is often easier than I-95.",
+  },
+  {
+    id: 'drive',
+    q: 'How far is the drive?',
+    a: 'Southern New England is closer than people think: about an hour from Boston, fifty minutes from Worcester, and an hour and a quarter from Hartford or the Cape. New York is a three-hour run up I-95. All of it ends on Reservoir Avenue in Cranston, with street and lot parking near the shop.',
+  },
+  {
+    id: 'stay',
+    q: 'Where should I stay?',
+    a: 'Downtown Providence puts you about ten minutes from the shop with the restaurants and the walkable city around you; the hotels near T.F. Green in Warwick are about fifteen minutes out and easiest if you fly. Either way the ride to the chair is short, so pick the evening you want, not the commute.',
+  },
+  {
+    id: 'fly-home',
+    q: 'Can I fly home the day after a session?',
+    a: 'Travel itself is fine; a fresh tattoo needs the same care in an airport as anywhere else. Keep it clean and moisturized per your aftercare instructions, wear loose clothing over it, and skip the pool, beach and hot tub while it heals. If your plans allow, a buffer morning is a kindness to yourself.',
+  },
+];
+
+const details: Record<string, string> = {
+  'out-of-state':
+    'Cover-ups and large pieces still need an in-person look before anything is promised, so plan those as a consultation visit plus a session visit, or ask in the form whether photos are enough to start the conversation.',
+  drive:
+    'Times are give-or-take traffic, and I-95 through Providence has a rush hour like anywhere. The shop sits on Route 2 (Reservoir Avenue) near the southern end of Route 10, so the last mile is easy from any direction.',
+  'fly-home':
+    'Anything specific to your piece — long flights, work boots, a beach vacation you already booked — ask Chris about at the session. The aftercare page has the full instructions.',
+};
+
+const jsonLd = [
+  person(),
+  tattooParlor(),
+  faqPage(
+    qa.map(({ q, a }) => ({ q, a })),
+    { path: '/travel/' },
+  ),
+  howTo('How to plan a tattoo trip to Chris Valencia', steps, {
+    description: 'Booking, travel and aftercare planning for getting tattooed at Powerline Tattoo in Cranston, Rhode Island from out of state.',
+    path: '/travel/',
+  }),
+];
+
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+<Base
+  title={title}
+  description={description}
+  canonicalPath="/travel/"
+  breadcrumbs={[{ name: 'Traveling In', path: '/travel/' }]}
+  jsonLd={jsonLd}
+  bodyClass="page-travel"
+>
+  <section class="section container travel">
+    <header class="travel__head">
+      <p class="eyebrow"><span class="sheet-no">No. 09</span> Traveling in</p>
+      <h1>Worth the trip: getting tattooed by Chris from out of town</h1>
+      <p class="answer">
+        Chris Valencia tattoos at Powerline Tattoo in Cranston, Rhode Island, about fifteen minutes from T.F.
+        Green International Airport and ten from downtown Providence. The booking form works from anywhere, the
+        design conversation happens over email before you travel, and this page covers the routes, the trains,
+        the drive times and how to plan the trip.
+      </p>
+      <ul class="stamps" role="list" aria-label="Ways to get here">
+        <li><span class="stamp">Fly: PVD, about 15 min out</span></li>
+        <li><span class="stamp">Train: Providence station</span></li>
+        <li><span class="stamp">Drive: I-95, Route 10, Route 2</span></li>
+      </ul>
+    </header>
+
+    <div class="travel__qs">
+      {
+        qa.map((item, i) => (
+          <section class="tq" id={item.id} aria-labelledby={`${item.id}-h`}>
+            <span class="tq__no sheet-no" aria-hidden="true">No. {pad(i + 1)}</span>
+            <div class="tq__body">
+              <h2 id={`${item.id}-h`}>{item.q}</h2>
+              <p class="answer">{item.a}</p>
+
+              {item.id === 'drive' && (
+                <div class="prose table-wrap">
+                  <table>
+                    <caption class="sr-only">Approximate drive times to Powerline Tattoo in Cranston, RI</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Coming from</th>
+                        <th scope="col">Take</th>
+                        <th scope="col">About</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drives.map((d) => (
+                        <tr>
+                          <th scope="row">{d.from}</th>
+                          <td>{d.route}</td>
+                          <td>{d.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {details[item.id] && <p class="tq__more">{details[item.id]}</p>}
+            </div>
+          </section>
+        ))
+      }
+
+      <section class="tq" id="plan" aria-labelledby="plan-h">
+        <span class="tq__no sheet-no" aria-hidden="true">No. {pad(qa.length + 1)}</span>
+        <div class="tq__body">
+          <h2 id="plan-h">How should I plan the trip?</h2>
+          <p class="answer">
+            Book the tattoo before the travel, then build the trip around the session. The four steps below are
+            the whole method; the <a href="/faq/">FAQ</a> covers preparation and what to bring in more detail,
+            and the <a href="/aftercare/">aftercare page</a> has the full healing instructions for the ride home.
+          </p>
+          <ol class="travel__steps">
+            {
+              steps.map((step) => (
+                <li>
+                  <strong>{step.name}.</strong> {step.text}
+                </li>
+              ))
+            }
+          </ol>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <Cta
+    sheetNo="No. 09"
+    heading="The chair is closer than you think."
+    body="Send the idea, the placement and your references through the booking form, and say where you're traveling from in the timing field. The design conversation happens over email before you book a single ticket."
+  />
+</Base>
+
+<style>
+  .travel__head {
+    display: grid;
+    gap: var(--space-s);
+    max-width: 46rem;
+  }
+
+  .travel__head h1 {
+    font-size: var(--step-4);
+    max-width: 22ch;
+  }
+
+  .travel__qs {
+    display: grid;
+    gap: var(--space-l);
+    margin-top: var(--space-l);
+    max-width: 46rem;
+  }
+
+  .tq {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-s);
+    align-items: start;
+    padding-top: var(--space-m);
+    border-top: 1px solid var(--rule-2);
+  }
+
+  .tq__no {
+    transform: translateY(0.35em);
+  }
+
+  .tq__body {
+    display: grid;
+    gap: var(--space-s);
+  }
+
+  .tq__body h2 {
+    font-size: var(--step-2);
+  }
+
+  .tq__more {
+    color: var(--ink-2);
+  }
+
+  .travel__steps {
+    display: grid;
+    gap: var(--space-s);
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+
+  .travel__steps li::marker {
+    font-weight: 700;
+  }
+
+  @media (max-width: 540px) {
+    .tq {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .tq__no {
+      transform: none;
+    }
+  }
+</style>
