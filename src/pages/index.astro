@@ -1,0 +1,23 @@
+---
+// Placeholder home page. Task 3 routes this through layouts/Base.astro and
+// Task 7 replaces it with the real hero + sections.
+const title = 'Chris Valencia Tattoo';
+const description =
+  'Illustrative, neo-traditional and new-school tattoos by Chris Valencia, resident artist at Powerline Tattoo in Cranston, Rhode Island.';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+  </head>
+  <body>
+    <main id="main">
+      <h1>{title}</h1>
+      <p>{description}</p>
+    </main>
+  </body>
+</html>
