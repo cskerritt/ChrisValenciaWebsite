@@ -16,7 +16,7 @@ export const TITLE_MAX = 60;
 export const DESCRIPTION_MIN = 120;
 export const DESCRIPTION_MAX = 160;
 
-const FALLBACK_SITE = 'https://chrisvalenciatattoo.com';
+const FALLBACK_SITE = 'https://chrisvalencia.art';
 
 function resolveSiteUrl(): string {
   const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
@@ -27,16 +27,16 @@ function resolveSiteUrl(): string {
   return raw.endsWith('/') ? raw : `${raw}/`;
 }
 
-/** Absolute site origin with a trailing slash, e.g. "https://chrisvalenciatattoo.com/". */
+/** Absolute site origin with a trailing slash, e.g. "https://chrisvalencia.art/". */
 export const SITE_URL: string = resolveSiteUrl();
 
 /**
  * Absolute URL for a site path. Already-absolute URLs (https:, mailto:, tel:)
  * pass through untouched.
  *
- *   absoluteUrl('/about/')   -> https://chrisvalenciatattoo.com/about/
- *   absoluteUrl('about/')    -> https://chrisvalenciatattoo.com/about/
- *   absoluteUrl('/#person')  -> https://chrisvalenciatattoo.com/#person
+ *   absoluteUrl('/about/')   -> https://chrisvalencia.art/about/
+ *   absoluteUrl('about/')    -> https://chrisvalencia.art/about/
+ *   absoluteUrl('/#person')  -> https://chrisvalencia.art/#person
  */
 export function absoluteUrl(path: string = '/'): string {
   if (/^[a-z][a-z0-9+.-]*:/i.test(path)) return path;

@@ -107,7 +107,7 @@ ever removed.
 
 | Variable                    | Purpose                                                                                                  |
 | --------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `SITE_URL`                  | Public origin, e.g. `https://chrisvalenciatattoo.com`. Drives canonical, OG, sitemap, JSON-LD, `llms.txt` and `robots.txt` URLs. Defaults to `https://chrisvalenciatattoo.com`. |
+| `SITE_URL`                  | Public origin, e.g. `https://chrisvalencia.art`. Drives canonical, OG, sitemap, JSON-LD, `llms.txt` and `robots.txt` URLs. Defaults to `https://chrisvalencia.art`. |
 | `PUBLIC_TURNSTILE_SITE_KEY` | Optional. Renders the Cloudflare Turnstile widget in the booking form. Must be paired with `TURNSTILE_SECRET` on the server; set both or neither. |
 
 Because the site is static, `SITE_URL` has to be present **when `npm run build` runs**
@@ -208,15 +208,11 @@ Nothing below appears on the site as a number or a promise. Each is phrased as
 - [ ] **Headshot and video** are the ones he wants; **Instagram** handle `@cvalencia7`
 - [ ] **Domain name** (see below) and whether the site should be linked from powerlinetattoo.com
 
-## Domain suggestions
+## Domain
 
-The build defaults to `https://chrisvalenciatattoo.com`; availability of every name
-below is unverified and none has been purchased.
-
-- `chrisvalenciatattoo.com` (matches the default and the site name)
-- `chrisvalencia.tattoo`
-- `cvalenciatattoo.com` (matches the Instagram handle)
-- `valenciatattoo.com`
+The site's domain is `chrisvalencia.art` (owned by Chris S., 2026-08-24). The build
+defaults to `https://chrisvalencia.art`; Railway's `SITE_URL` variable points at it and
+the custom domain is configured on the Railway service.
 
 ## SEO / GEO notes
 
